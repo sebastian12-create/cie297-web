@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CIE-297 | Monitoreo en Tiempo Real</title>
+<link rel="icon" href="assets/logo.png" />
+
+<!-- Leaflet (mapa) -->
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin=""
+/>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""
+></script>
+
+<style>
+:root{
+  --bg:#0b1424;--card:#101b31;--soft:#12213b;--text:#e5ecff;--muted:#93a4c7;
+  --ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--line:rgba(255,255,255,.06);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:var(--bg)}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+.appbar{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:#0b1424;position:sticky;top:0;z-index:40;border-bottom:1px solid var(--line)}
+.brand{display:flex;gap:.6rem;align-items:center;font-weight:800;font-size:18px}
+.brand img{height:32px;width:32px;border-radius:6px}
+.actions{display:flex;gap:.5rem;align-items:center}
+.btn{cursor:pointer;border:1px solid var(--line);background:var(--soft);color:var(--text);padding:.5rem .8rem;border-radius:.6rem}
+.btn:hover{filter:brightness(1.1)}
+.btn-danger{background:#2b1220;border-color:#ff6b6b;color:#ff9aa9}
+.btn-secondary{background:#1c2437}
+.badge{display:inline-block;padding:.1rem .6rem;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;gap:16px}
+.g-2{grid-template-columns:2fr 1fr}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h3{margin:.2rem 0 10px 0}
+.row{display:flex;gap:10px;align-items:center}
+.col{display:flex;flex-direction:column;gap:6px}
+.control{width:100%;background:#0f1a30;border:1px solid var(--line);color:var(--text);padding:.55rem .6rem;border-radius:8px}
+.table-wrap{overflow:auto;border:1px dashed var(--line);border-radius:10px;margin-top:8px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:.55rem .6rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+thead th{background:#0f1a2e;color:#c7d3ff;font-weight:700}
+.muted{color:var(--muted)}
+.right{display:flex;justify-content:flex-end}
+.hidden{display:none !important}
+.chip{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-weight:700;border:1px solid rgba(255,255,255,.15);letter-spacing:.5px}
+.chip--alta{background:#3b0d0d;border-color:var(--danger);color:#ff6b6b}
+.chip--media{background:#3a3000;border-color:var(--warn);color:#ffd166}
+.chip--baja{background:#062b0b;border-color:var(--ok);color:#86efac}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+.modal .box{width:680px;max-width:92vw;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.title{font-weight:800;margin:0 0 8px 0}
+#map{height:320px;border:1px dashed var(--line);border-radius:10px}
+.legend{margin-top:6px}
+@media (max-width:980px){ .g-2{grid-template-columns:1fr} }
+</style>
+
+<!-- Base API: usamos proxy en Vercel -->
+<script> window.CIE297_API = '/api'; </script>
+<script>
+// ===== helpers base =====
+const API=(window.CIE297_API||'').replace(/\/+$/, ''); // '/api' o 'https://host.com/api'
+const qs = s => document.querySelector(s), qsa = s => [...document.querySelectorAll(s)];
+const esc = s => String(s??'').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const authHeaders = () => ({'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('token')||'')});
+function fmtDateTime(iso){const d=new Date(iso||Date.now());const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),da=('0'+d.getDate()).slice(-2),hh=('0'+d.getHours()).slice(-2),mm=('0'+d.getMinutes()).slice(-2),ss=('0'+d.getSeconds()).slice(-2);return `${y}-${m}-${da} ${hh}:${mm}:${ss}`;}
+function chipNivel(n){n=(n||'').toUpperCase();const e=document.createElement('span');e.className='chip '+(n==='ALTA'?'chip--alta':n==='BAJA'?'chip--baja':'chip--media');e.textContent=n;return e;}
+async function parseJSONorText(resp){const txt=await resp.text();try{return{data:JSON.parse(txt),raw:txt}}catch{return{data:null,raw:txt}}}
+
+// ===== API (sin duplicar /api) =====
+async function apiLogin(email,password){
+  const r=await fetch(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+  const {data,raw}=await parseJSONorText(r);
+  if(!r.ok) throw new Error(`Login falló [${r.status}]: ${(data&&(data.message||data.error))||raw.slice(0,140)}`);
+  localStorage.setItem('token',data.token);
+  window._me=data.user; window._isAdmin=!!data.user?.is_admin;
+  // guardar ubicación (si el usuario lo permite) como "propiedad" temporal para el mapa de agentes
+  if(navigator.geolocation){navigator.geolocation.getCurrentPosition(pos=>{window._myPos={lat:pos.coords.latitude,lng:pos.coords.longitude}})}
+  return data;
+}
+async function apiMe(){
+  const r=await fetch(`${API}/me`,{headers:authHeaders()}); if(!r.ok) return null; const {data}=await parseJSONorText(r);
+  window._me=data.user; window._isAdmin=!!data.user?.is_admin; return data.user;
+}
+async function apiCreateAccount(p){
+  const r=await fetch(`${API}/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+  const {data,raw}=await parseJSONorText(r);
+  if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'Error registrar');
+  return data;
+}
+async function apiSendReport(p){
+  const r=await fetch(`${API}/reports`,{method:'POST',headers:authHeaders(),body:JSON.stringify(p)});
+  const {data,raw}=await parseJSONorText(r);
+  if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'Error enviar');
+  return data;
+}
+async function apiGetAlerts(limit=10){
+  const r=await fetch(`${API}/admin/alerts?limit=${limit}`,{headers:authHeaders()});
+  const {data,raw}=await parseJSONorText(r);
+  if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'Error listar');
+  // Filtrar cualquier alerta simulada si existiese (backend antiguo)
+  const items=(data.items||[]).filter(x=>!x.sim);
+  return items;
+}
+async function apiGetAccesses(limit=50){
+  try{
+    const r=await fetch(`${API}/admin/access?limit=${limit}`,{headers:authHeaders()});
+    if(!r.ok) throw new Error('noaccess');
+    const {data}=await parseJSONorText(r);
+    return data.items||[];
+  }catch(_){ return {__error:'No existe endpoint /admin/access'}; }
+}
+// NUEVOS endpoints sugeridos para bloqueo/eliminación (si el backend los implementa)
+async function apiBlockAccess(email){
+  try{
+    const r=await fetch(`${API}/admin/access/block`,{method:'POST',headers:authHeaders(),body:JSON.stringify({email})});
+    const {data,raw}=await parseJSONorText(r);
+    if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'No se pudo bloquear');
+    return true;
+  }catch(e){ alert(e.message); return false; }
+}
+async function apiDeleteAccess(email){
+  try{
+    const r=await fetch(`${API}/admin/access`,{method:'DELETE',headers:authHeaders(),body:JSON.stringify({email})});
+    const {data,raw}=await parseJSONorText(r);
+    if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'No se pudo eliminar');
+    return true;
+  }catch(e){ alert(e.message); return false; }
+}
+// Sugerido: endpoint para agentes conectados con ubicación (si el backend lo expone)
+async function apiGetAgents(){
+  try{
+    const r=await fetch(`${API}/admin/agents`,{headers:authHeaders()});
+    if(!r.ok) throw new Error('noagents');
+    const {data}=await parseJSONorText(r);
+    return data.items||[]; // esperado: [{email,lat,lng,rol}]
+  }catch(_){
+    return []; // si no existe, devolvemos vacío
+  }
+}
+
+// ===== tablas / recientes =====
+function paintLatest(sel,items){
+  const tb=qs(sel); tb.innerHTML='';
+  (items||[]).forEach(it=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=
+      `<td>${it.id??''}</td>
+       <td>${fmtDateTime(it.fecha||it.created_at)}</td>
+       <td data-chip></td>
+       <td>${esc(it.operacion||it.tipo||'')}</td>
+       <td>${esc(it.usuario||'')}</td>
+       <td>${(it.lat!=null&&it.lng!=null)?((+it.lat).toFixed(6)+', '+(+it.lng).toFixed(6)) : ''}</td>
+       <td>${esc(it.descripcion||'')}</td>
+       <td>${esc(it.pais_ciudad||'')}</td>
+       <td>${esc(it.lugar_cod||'')}</td>
+       <td>${esc(it.personalidad||'')}</td>
+       <td>${esc(it.unidad_policial||'')}</td>
+       <td>${esc(it.accion_oponente||'')}</td>
+       <td>${esc(it.material_equipo||'')}</td>
+       <td>${esc(it.transporte||'')}</td>
+       <td>${esc(it.otros||'')}</td>
+       <td>${esc(it.clasificacion_seg||'')}</td>
+       <td>${esc(it.tipo_doc||'')}</td>
+       <td>${esc(it.color_code||'')}</td>`;
+    tr.querySelector('[data-chip]').appendChild(chipNivel(it.nivel));
+    tb.appendChild(tr);
+  });
+}
+
+// cache para insertar manuales inmediatamente
+window._localManual = [];
+async function refreshLatest(){
+  const server=await apiGetAlerts(200); // traer más para no perder campos
+  const merged=mergeAlerts(server,window._localManual);
+  paintLatest('#listLatest',merged);
+}
+async function refreshAdmin(){
+  const server=await apiGetAlerts(200);
+  const merged=mergeAlerts(server,window._localManual);
+  paintLatest('#adminLatest',merged);
+}
+function mergeAlerts(server,manuals){
+  const all=[...(server||[])];
+  (manuals||[]).forEach(m=>{ const has=all.some(x=>String(x.id)===String(m.id)); if(!has) all.unshift(m); });
+  all.sort((a,b)=>new Date(b.fecha||b.created_at)-new Date(a.fecha||a.created_at));
+  return all.slice(0,50);
+}
+
+// ===== mapa (agentes logueados) =====
+let map, agentsLayer;
+function initMap(){
+  if(map) return; // idempotente
+  map = L.map('map').setView([-16.5,-68.15], 6); // Bolivia
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap'}).addTo(map);
+  agentsLayer = L.layerGroup().addTo(map);
+}
+function makeAgentIcon(color){
+  const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
+    <circle cx='12' cy='12' r='10' fill='${color}' opacity='0.85'/>
+    <text x='12' y='16' text-anchor='middle' font-size='12' fill='#fff' font-family='Arial' font-weight='700'>A</text>
+  </svg>`;
+  return L.icon({iconUrl:'data:image/svg+xml;base64,'+btoa(svg), iconSize:[24,24], iconAnchor:[12,12]});
+}
+async function renderAgentsOnMap(){
+  if(!map) initMap();
+  agentsLayer.clearLayers();
+  // agentes del backend (si está disponible)
+  const agents = await apiGetAgents();
+  agents.forEach(a=>{
+    if(a.lat!=null && a.lng!=null){
+      const icon = makeAgentIcon(a.rol==='admin'?'#ef4444':'#3b82f6');
+      L.marker([+a.lat,+a.lng],{icon}).addTo(agentsLayer).bindTooltip(esc(a.email||'agente'));
+    }
+  });
+  // si el propio usuario compartió ubicación en login, mostrar también
+  if(window._myPos){
+    const meIcon = makeAgentIcon('#22c55e');
+    L.marker([window._myPos.lat, window._myPos.lng],{icon:meIcon}).addTo(agentsLayer).bindTooltip('Yo');
+  }
+}
+
+// ===== envío manual (sin simulación) =====
+async function sendQuick(){
+  const operacion=qs('#operacion').value; const nivel=qs('#nivel').value;
+  const msg=qs('#mensaje').value||'', libre=qs('#descripcion').value||'';
+  const descripcion = msg ? `[${msg}] ${libre}` : libre;
+  let lat=qs('#lat').value?+qs('#lat').value:null, lng=qs('#lng').value?+qs('#lng').value:null;
+  const pais_ciudad = qs('#paisCiudad').value.trim();
+  const lugar_cod = qs('#lugarCod').value;
+  const personalidad = qs('#personalidad').value;
+  const unidad_policial = qs('#unidadPolicial').value;
+  const accion_oponente = qs('#accionOponente').value;
+  const material_equipo = qs('#materialEquipo').value;
+  const transporte = qs('#transporte').value;
+  const otros = qs('#otros').value;
+  const clasificacion_seg = qs('#clasificacionSeg').value;
+  const tipo_doc = qs('#tipoDoc').value;
+  const color_code = qs('#colorCode').value.trim();
+  try{
+    const payload={operacion,nivel,descripcion,lat,lng,pais_ciudad,lugar_cod,personalidad,unidad_policial,accion_oponente,material_equipo,transporte,otros,clasificacion_seg,tipo_doc,color_code};
+    const res=await apiSendReport(payload);
+    alert('Reporte enviado');
+    qs('#descripcion').value='';
+    const now=new Date().toISOString();
+    const asItem=res?.item||{id:res?.id||('local-'+Date.now()),fecha:now,nivel,operacion,tipo:operacion,usuario:(window._me?.email)||'',lat,lng,descripcion,pais_ciudad,lugar_cod,personalidad,unidad_policial,accion_oponente,material_equipo,transporte,otros,clasificacion_seg,tipo_doc,color_code};
+    window._localManual.unshift(asItem);
+    if(window._isAdmin) refreshAdmin(); else refreshLatest();
+  }catch(e){ alert(e.message) }
+}
+function useLocation(){ if(!navigator.geolocation) return alert('Geolocalización no soportada'); navigator.geolocation.getCurrentPosition(p=>{qs('#lat').value=p.coords.latitude.toFixed(6);qs('#lng').value=p.coords.longitude.toFixed(6)},()=>alert('No se pudo obtener ubicación'),{enableHighAccuracy:true,timeout:7000}) }
+
+// ===== vistas =====
+function render(v){
+  qsa('[data-view]').forEach(e=>e.classList.add('hidden'));
+  qs(`[data-view="${v}"]`).classList.remove('hidden');
+  if(v==='dashboard'||v==='admin'){qs('#btnLogout').classList.remove('hidden')} else {qs('#btnLogout').classList.add('hidden')}
+  qs('#hello').textContent=window._me?(' | '+(window._me.grado||'')+' '+(window._me.nombres||'')) : '';
+  if(v==='dashboard'||v==='admin'){ initMap(); renderAgentsOnMap(); }
+}
+
+// ===== login =====
+async function doLogin(){
+  try{
+    await apiLogin(qs('#loginEmail').value.trim(), qs('#loginPass').value.trim());
+    if(window._isAdmin){ await initAdmin(); render('admin'); } else { await initUser(); render('dashboard'); }
+  }catch(e){ alert(e.message) }
+}
+
+// ===== registro =====
+async function createAccount(){
+  const p={
+    grado:qs('#grado').value,
+    fuerza:qs('#fuerza').value,
+    especialidad:qs('#especialidad').value.trim(),
+    nombres:qs('#nombres').value.trim(),
+    apellidos:qs('#apellidos').value.trim(),
+    email:qs('#email').value.trim(),
+    password:qs('#password').value.trim()
+  };
+  try{ await apiCreateAccount(p); alert('Usuario creado. Inicia sesión.'); render('login'); } catch(e){ alert(e.message) }
+}
+
+// ===== Admin/Usuario =====
+async function initUser(){ await refreshLatest(); }
+async function initAdmin(){ await refreshAdmin(); }
+function logout(){ localStorage.removeItem('token'); window._me=null; window._isAdmin=false; render('landing'); }
+
+// Ver todas (agrupado por días) — solo manuales (sim=false)
+async function verTodas(){
+  const r=await fetch(`${API}/admin/alerts?limit=5000`,{headers:authHeaders()});
+  const {data}=await parseJSONorText(r);
+  const items=(data.items||[]).filter(x=>!x.sim).sort((a,b)=>new Date(b.fecha||b.created_at)-new Date(a.fecha||a.created_at));
+  const g=items.reduce((a,it)=>{const d=new Date(it.fecha||it.created_at);const k=`${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;(a[k]||(a[k]=[])).push(it);return a},{})
+  const days=Object.keys(g).sort().reverse();
+  const pnl=qs('#panelTodas');
+  pnl.classList.remove('hidden');
+  pnl.innerHTML=days.map(day=>{
+    const rows=g[day].map(it=>
+      `<tr>
+        <td>${it.id??''}</td>
+        <td>${fmtDateTime(it.fecha||it.created_at)}</td>
+        <td>${esc(it.nivel||'')}</td>
+        <td>${esc(it.operacion||it.tipo||'')}</td>
+        <td>${esc(it.usuario||'')}</td>
+        <td>${(it.lat!=null&&it.lng!=null)?((+it.lat).toFixed(6)+', '+(+it.lng).toFixed(6)) : ''}</td>
+        <td>${esc(it.pais_ciudad||'')}</td>
+        <td>${esc(it.lugar_cod||'')}</td>
+        <td>${esc(it.personalidad||'')}</td>
+        <td>${esc(it.unidad_policial||'')}</td>
+        <td>${esc(it.accion_oponente||'')}</td>
+        <td>${esc(it.material_equipo||'')}</td>
+        <td>${esc(it.transporte||'')}</td>
+        <td>${esc(it.otros||'')}</td>
+        <td>${esc(it.clasificacion_seg||'')}</td>
+        <td>${esc(it.tipo_doc||'')}</td>
+        <td>${esc(it.color_code||'')}</td>
+        <td>${esc(it.descripcion||'')}</td>
+      </tr>`).join('');
+    return `
+      <div class="row" style="justify-content:space-between;align-items:center;margin:6px 0">
+        <div class="title">Reportes del ${day}</div>
+        <div class="row" style="gap:6px">
+          <button class="btn btn-secondary" data-exp-pdf="${day}">Exportar PDF</button>
+          <button class="btn" data-exp-csv="${day}">Exportar CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table><thead><tr>
+        <th>ID</th><th>Fecha</th><th>Nivel</th><th>Operación</th><th>Usuario</th><th>Ubicación</th>
+        <th>País/Ciudad</th><th>Lugar</th><th>Personalidad</th><th>Unidad Policial</th>
+        <th>Acción Oponente</th><th>Material/Equipo</th><th>Transporte</th><th>Otros</th>
+        <th>Clasificación SEG</th><th>Tipo Doc</th><th>Código color</th><th>Descripción</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+  }).join('');
+}
+async function onExport(ev){
+  const pdf=ev.target.closest('[data-exp-pdf]'), csv=ev.target.closest('[data-exp-csv]'); if(!pdf&&!csv)return;
+  const day=(pdf&&pdf.dataset.expPdf)||(csv&&csv.dataset.expCsv);
+  const base = pdf ? `${API}/admin/alerts/export/pdf` : `${API}/admin/alerts/export/csv`;
+  const url = `${base}?date=${encodeURIComponent(day)}`;
+  const r=await fetch(url,{headers:authHeaders()}); const blob=await r.blob();
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=pdf?`reporte_${day}.pdf`:`reporte_${day}.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// Accesos (ver, bloquear, eliminar)
+async function openAccess(){
+  const box=qs('#accessBody'); box.innerHTML='<div class="muted">Cargando…</div>';
+  const data=await apiGetAccesses(200);
+  if(data && data.__error){ box.innerHTML=`<div class="muted">⚠ ${data.__error}. Configura el endpoint en el backend.</div>`; qs('#accessModal').style.display='flex'; return; }
+  const rows=(data||[]).map(a=>
+    `<tr>
+      <td>${fmtDateTime(a.fecha||a.created_at)}</td>
+      <td>${esc(a.email||a.usuario||'')}</td>
+      <td>${esc(a.estado||a.status||'OK')}</td>
+      <td class="row" style="gap:6px">
+        <button class="btn btn-danger" data-bloq="${esc(a.email||'')}">Bloquear</button>
+        <button class="btn" data-del="${esc(a.email||'')}">Eliminar</button>
+      </td>
+    </tr>`).join('');
+  box.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Email</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  qs('#accessModal').style.display='flex';
+}
+function closeAccess(){ qs('#accessModal').style.display='none' }
+async function onAccessAction(ev){
+  const bloq=ev.target.closest('[data-bloq]'); const del=ev.target.closest('[data-del]'); if(!bloq&&!del) return;
+  const email=(bloq&&bloq.dataset.bloq)||(del&&del.dataset.del);
+  if(bloq){ const ok=await apiBlockAccess(email); if(ok){ alert('Acceso bloqueado'); openAccess(); } }
+  if(del){ if(confirm('¿Eliminar este acceso?')){ const ok=await apiDeleteAccess(email); if(ok){ alert('Acceso eliminado'); openAccess(); } }
+}
+
+// ===== utilidades para listas =====
+function fillSelectRange(sel, prefix, start, end){ const el=qs(sel); const keepFirst = el.querySelector('option[value=""]'); if(!keepFirst) el.innerHTML=''; else el.innerHTML = el.querySelector('option[value=""]').outerHTML; for(let i=start;i<=end;i++){ const v=prefix+String(i); const o=document.createElement('option'); o.textContent=v; o.value=v; el.appendChild(o); } }
+function fillSelectArray(sel, arr){ const el=qs(sel); const keepFirst = el.querySelector('option[value=""]'); if(!keepFirst) el.innerHTML=''; else el.innerHTML = el.querySelector('option[value=""]').outerHTML; arr.forEach(v=>{const o=document.createElement('option'); o.textContent=v; o.value=v; el.appendChild(o);}); }
+
+// ===== init =====
+window.addEventListener('DOMContentLoaded', async ()=>{
+  // header
+  qs('#btnLogout').addEventListener('click',logout);
+  // landing
+  qs('#btnCreate').addEventListener('click',createAccount);
+  qs('#btnGoLogin').addEventListener('click',()=>render('login'));
+  // login
+  qs('#btnLogin').addEventListener('click',doLogin);
+  qs('#btnBack').addEventListener('click',()=>render('landing'));
+  // dashboard/admin
+  qs('#btnSend').addEventListener('click',sendQuick);
+  qs('#btnUseLocation').addEventListener('click',useLocation);
+  qs('#btnVerTodas').addEventListener('click',verTodas);
+  qs('#panelTodas').addEventListener('click',onExport);
+  qs('#btnAccess').addEventListener('click',openAccess);
+  qs('#btnCloseAccess').addEventListener('click',closeAccess);
+  qs('#accessBody').addEventListener('click',onAccessAction);
+
+  // Cargar listas especiales
+  // 1) GRADO (WW/W1..W9/W0)
+  fillSelectArray('#grado', ['WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0']);
+  // 2) FUERZA (MA..MF)
+  fillSelectArray('#fuerza', ['MA','MB','MC','MD','ME','MF']);
+  // 3) LUGAR 352..399
+  fillSelectRange('#lugarCod', '', 352, 399);
+  // 4) PERSONALIDADES: HA..HZ + H1..H5 + extras
+  const pers=[...Array(26)].map((_,i)=>'H'+String.fromCharCode(65+i)).concat(['H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE']);
+  fillSelectArray('#personalidad', pers);
+  // 5) UNIDAD POLICIAL 0Y1..0Y9
+  fillSelectArray('#unidadPolicial', ['0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9']);
+  // 6) ACCIÓN OPONENTE KA/KN
+  fillSelectArray('#accionOponente', ['KA','KN']);
+  // 7) MATERIAL/EQUIPO LA..LZ + L1..L7
+  const mat=[...Array(26)].map((_,i)=>'L'+String.fromCharCode(65+i)).concat(['L1','L2','L3','L4','L5','L6','L7']);
+  fillSelectArray('#materialEquipo', mat);
+  // 8) TRANSPORTE Y1..Y14
+  fillSelectArray('#transporte', Array.from({length:14},(_,i)=>'Y'+(i+1)));
+  // 9) OTROS
+  const otros=['O1','O2','O3','O4','O5','O6','O7','O8','O9','OX','OY','ODE','ON','OT','OF','OG','OC','OPM','OE','OID','OS','OR','OH','OM','ODO','ODR'];
+  fillSelectArray('#otros', otros);
+  // 10) CLASIFICACIÓN SEG
+  fillSelectArray('#clasificacionSeg',['SAGITARIO','TAURO','GEMINIS','ARIES']);
+  // 11) TIPO DE DOCUMENTO Z1A..Z16P
+  const tiposDoc=[]; const suf=['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P'];
+  for(let i=1;i<=16;i++){ tiposDoc.push(`Z${i}${suf[i-1]}`); }
+  fillSelectArray('#tipoDoc', tiposDoc);
+
+  // ¿Sesión existente?
+  const me=await apiMe();
+  if(me){ if(window._isAdmin){ await initAdmin(); render('admin'); } else { await initUser(); render('dashboard'); } }
+  else { render('landing'); }
+
+  // Actualizaciones periódicas (sin simulación)
+  setInterval(()=>{ if(window._isAdmin) refreshAdmin(); else refreshLatest(); renderAgentsOnMap(); }, 20000);
+});
+</script>
+</head>
+<body>
+<header class="appbar">
+  <div class="brand">
+    <img src="assets/logo.png" alt="logo">
+    <span>CIE-297 | Monitoreo en Tiempo Real <span id="hello" class="muted"></span></span>
+  </div>
+  <div class="actions">
+    <button id="btnLogout" class="btn btn-danger hidden">Cerrar sesión</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- LANDING: SOLO formulario de registro + botón para ir a login -->
+  <section class="card" data-view="landing">
+    <h3>Registro</h3>
+    <div class="grid" style="grid-template-columns:1fr auto">
+      <div class="col">
+        <div class="row">
+          <select id="grado" class="control" style="max-width:200px">
+            <option value="" selected disabled>Grado (WW/W1…W0)</option>
+          </select>
+          <select id="fuerza" class="control" style="max-width:200px">
+            <option value="" selected disabled>Fuerza (MA…MF)</option>
+          </select>
+          <input id="especialidad" placeholder="Especialidad" class="control" style="flex:1">
+        </div>
+        <div class="row"><input id="nombres" placeholder="Nombres" class="control" style="flex:1"><input id="apellidos" placeholder="Apellidos" class="control" style="flex:1"></div>
+        <div class="row"><input id="email" placeholder="Email" class="control" style="flex:1"><input id="password" type="password" placeholder="Contraseña" class="control" style="flex:1"></div>
+        <div class="right">
+          <button id="btnCreate" class="btn">Crear cuenta</button>
+          <button id="btnGoLogin" class="btn btn-secondary" style="margin-left:8px">Iniciar sesión</button>
+        </div>
+      </div>
+    </div>
+    <p class="muted">© CIE-297 · Prototipo académico · Tiempo real</p>
+  </section>
+
+  <!-- LOGIN (solo aparece cuando el usuario lo elige) -->
+  <section class="card hidden" data-view="login">
+    <h3>Iniciar sesión</h3>
+    <div class="col" style="gap:8px;max-width:520px">
+      <input id="loginEmail" class="control" placeholder="email">
+      <input id="loginPass" type="password" class="control" placeholder="contraseña">
+      <div class="row" style="gap:8px">
+        <button id="btnLogin" class="btn">Entrar</button>
+        <button id="btnBack" class="btn btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD (usuario) -->
+  <section class="grid g-2 hidden" data-view="dashboard">
+    <div class="card">
+      <h3>Área Operativa</h3>
+      <div id="map"></div>
+      <div class="muted legend">Leyenda: <span class="chip chip--baja">BAJA</span> <span class="chip chip--media">MEDIA</span> <span class="chip chip--alta">ALTA</span></div>
+    </div>
+    <!-- Se elimina "Órganos de búsqueda" como sección independiente -->
+
+    <div class="card" style="grid-column:1 / -1">
+      <h3>Misiones / Reportes rápidos</h3>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div class="col">
+          <label>Operaciones</label>
+          <select id="operacion" class="control">
+            <option>UBICACIÓN LUGAR Y DIRECCIÓN</option><option>RETOMA DE INSTALACIONES</option><option>RESCATE DE REHENES</option><option>PATRULLAJE</option><option>CONTROL DE LA POBLACIÓN</option><option>AISLAR EL ÁREA</option><option>EMBOSCADA</option><option>GOLPE DE MANO</option><option>RECONOCIMIENTO</option><option>PERSECUCIÓN</option><option>DESTRUCCIÓN</option><option>INFILTRACIÓN</option><option>PLANEAMIENTO</option><option>EVACUACIÓN</option><option>EXFILTRACIÓN</option><option>ENVIAR REFUERZOS</option><option>NOS ATACAN</option><option>ALISTAMIENTO</option><option>MOV. HELITRANSPORTAD</option><option>MOV. FLUVIAL</option><option>MOV. POR VEHICULO TIE.</option><option>MOV. A PIE</option><option>MOV. ÁEREO</option><option>OP. AEROTRANSPORTADA</option><option>OP. DE INTELIGENCIA</option><option>OP. DE SEG.DIGNATARIOS</option><option>OP. DE SEGURIDAD</option><option>OP. DE PPI</option><option>OP. CONTRAINTELIGENCIA</option><option>OP. HELITRANSPORTADA</option><option>OP. PSICOLÓGICAS</option><option>SECUESTRO</option><option>ABASTECIMIENTO</option><option>EJERCICIO DE ENTRENAMIENTO</option><option>PLAN DE LLAMADAS</option><option>PRE ALERTA</option><option>ALERTA</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Nivel</label>
+          <select id="nivel" class="control"><option>ALTA</option><option selected>MEDIA</option><option>BAJA</option></select>
+        </div>
+
+        <div class="col">
+          <label>País / Ciudad</label>
+          <input id="paisCiudad" class="control" placeholder="Ej.: Bolivia / La Paz" />
+        </div>
+        <div class="col">
+          <label>Lugar</label>
+          <select id="lugarCod" class="control">
+            <option value="" selected disabled>352…399</option>
+          </select>
+        </div>
+
+        <div class="col">
+          <label>Personalidades</label>
+          <select id="personalidad" class="control">
+            <option value="" selected disabled>HA…HZ, H1–H5…</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Unidad Policial</label>
+          <select id="unidadPolicial" class="control">
+            <option value="" selected disabled>0Y1…0Y9</option>
+          </select>
+        </div>
+
+        <div class="col">
+          <label>Acciones del oponente</label>
+          <select id="accionOponente" class="control">
+            <option value="" selected disabled>KA / KN</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Material / Equipo</label>
+          <select id="materialEquipo" class="control">
+            <option value="" selected disabled>LA…LZ, L1…L7</option>
+          </select>
+        </div>
+
+        <div class="col">
+          <label>Transporte</label>
+          <select id="transporte" class="control">
+            <option value="" selected disabled>Y1…Y14</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Otros</label>
+          <select id="otros" class="control">
+            <option value="" selected disabled>O1…O9, OX, OY, ODE…</option>
+          </select>
+        </div>
+
+        <div class="col">
+          <label>Clasificación SEG</label>
+          <select id="clasificacionSeg" class="control">
+            <option value="" selected disabled>— seleccionar —</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Tipo de documento</label>
+          <select id="tipoDoc" class="control">
+            <option value="" selected disabled>Z1A…Z16P</option>
+          </select>
+        </div>
+
+        <div class="col" style="grid-column:1 / -1">
+          <label>Código indicativo de color</label>
+          <input id="colorCode" class="control" placeholder="Ej.: ROJO-3 / VERDE-1 / etc." />
+        </div>
+
+        <div class="col">
+          <label>Mensaje</label>
+          <select id="mensaje" class="control">
+            <option value="">— seleccionar —</option>
+            <option>PETA</option><option>LAMBO</option><option>TRICICLO</option><option>PATINETA</option>
+            <option>FRUTAS</option><option>MOTOBOMBA</option><option>CUCHARA</option><option>TENEDOR</option>
+            <option>CHISGUETE</option><option>PINTURA ROJA</option><option>PINTURA NARANJA</option>
+            <option>PINTURA AZUL</option><option>PINTURA VERDE</option><option>PINTURA AMARILLA</option><option>PINTURA CAFE</option>
+            <option>YENAS</option><option>LOBOS</option><option>LIEBRES</option><option>JUGANDO</option>
+            <option>RIO PILCOMAYO</option><option>LAGUNA ESCOBAR</option><option>MALLASA</option><option>CIELO NUBLADO</option>
+            <option>HOTEL RADISSON</option><option>HERRADURA</option><option>FEDERAL</option><option>CAIMAN</option><option>LAGARTOS</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Ubicación</label>
+          <div class="row"><input id="lat" class="control" placeholder="lat"><input id="lng" class="control" placeholder="lng"><button id="btnUseLocation" class="btn">Usar ubicación</button></div>
+        </div>
+        <div class="col" style="grid-column:1 / -1"><label>Descripción</label><textarea id="descripcion" class="control" rows="3" placeholder="Detallar lo ocurrido…"></textarea></div>
+      </div>
+      <div class="right" style="margin-top:8px"><button id="btnSend" class="btn">Enviar</button></div>
+    </div>
+
+    <div class="card" style="grid-column:1 / -1">
+      <div class="row" style="justify-content:space-between;align-items:center"><h3>Alertas (recientes, solo manuales)</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Fecha</th><th>Nivel</th><th>Operación</th><th>Usuario</th><th>Ubicación</th>
+              <th>País/Ciudad</th><th>Lugar</th><th>Personalidad</th><th>Unidad Policial</th>
+              <th>Acción Oponente</th><th>Material/Equipo</th><th>Transporte</th><th>Otros</th>
+              <th>Clasificación SEG</th><th>Tipo Doc</th><th>Código color</th><th>Descripción</th>
+            </tr>
+          </thead>
+          <tbody id="listLatest"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN -->
+  <section class="grid g-2 hidden" data-view="admin">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3>Alertas (recientes, solo manuales)</h3>
+        <div class="row" style="gap:8px">
+          <span class="badge">últimas</span>
+          <button id="btnVerTodas" class="btn btn-secondary">Ver todas</button>
+          <button id="btnAccess" class="btn">Accesos</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table><thead><tr>
+        <th>ID</th><th>Fecha</th><th>Nivel</th><th>Operación</th><th>Usuario</th><th>Ubicación</th>
+        <th>País/Ciudad</th><th>Lugar</th><th>Personalidad</th><th>Unidad Policial</th>
+        <th>Acción Oponente</th><th>Material/Equipo</th><th>Transporte</th><th>Otros</th>
+        <th>Clasificación SEG</th><th>Tipo Doc</th><th>Código color</th><th>Descripción</th>
+      </tr></thead><tbody id="adminLatest"></tbody></table></div>
+      <div id="panelTodas" class="hidden" style="margin-top:10px"></div>
+    </div>
+    <aside class="card hidden"><!-- Órganos de búsqueda eliminado --></aside>
+  </section>
+</div>
+
+<!-- Modal Accesos -->
+<div id="accessModal" class="modal">
+  <div class="box">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="title">Accesos</div>
+      <button id="btnCloseAccess" class="btn btn-secondary">Cerrar</button>
+    </div>
+    <div id="accessBody"></div>
+  </div>
+</div>
+</body>
+</html>
