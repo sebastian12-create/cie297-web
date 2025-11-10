@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://TU_BACKEND_HOST/api/:path*"
+      "destination": "https://cie297-backend-s1gv.onrender.com/api/:path*"
     }
   ]
 }

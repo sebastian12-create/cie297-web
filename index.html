@@ -1,276 +1,429 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CIE-297 | Monitoreo en Tiempo Real</title>
-<link rel="icon" href="assets/logo.png" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<style>
-:root{--bg:#0b1424;--card:#101b31;--soft:#12213b;--text:#e5ecff;--muted:#93a4c7;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--line:rgba(255,255,255,.06)}
-*{box-sizing:border-box} html,body{height:100%}
-body{margin:0;font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:var(--bg)}
-.container{max-width:1200px;margin:0 auto;padding:16px}
-.appbar{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:#0b1424;position:sticky;top:0;z-index:40;border-bottom:1px solid var(--line)}
-.brand{display:flex;gap:.6rem;align-items:center;font-weight:800;font-size:18px}
-.brand img{height:32px;width:32px;border-radius:6px}
-.actions{display:flex;gap:.5rem;align-items:center}
-.btn{cursor:pointer;border:1px solid var(--line);background:var(--soft);color:var(--text);padding:.5rem .8rem;border-radius:.6rem}
-.btn:hover{filter:brightness(1.1)}
-.btn-danger{background:#2b1220;border-color:#ff6b6b;color:#ff9aa9}
-.btn-secondary{background:#1c2437}
-.badge{display:inline-block;padding:.1rem .6rem;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-.grid{display:grid;gap:16px}
-.g-2{grid-template-columns:2fr 1fr}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-.card h3{margin:.2rem 0 10px 0}
-.row{display:flex;gap:10px;align-items:center}
-.col{display:flex;flex-direction:column;gap:6px}
-.control{width:100%;background:#0f1a30;border:1px solid var(--line);color:var(--text);padding:.55rem .6rem;border-radius:8px}
-.table-wrap{overflow:auto;border:1px dashed var(--line);border-radius:10px;margin-top:8px}
-table{width:100%;border-collapse:collapse}
-th,td{padding:.55rem .6rem;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
-thead th{background:#0f1a2e;color:#c7d3ff;font-weight:700}
-.muted{color:var(--muted)} .right{display:flex;justify-content:flex-end} .hidden{display:none !important}
-.chip{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-weight:700;border:1px solid rgba(255,255,255,.15);letter-spacing:.5px}
-.chip--alta{background:#3b0d0d;border-color:var(--danger);color:#ff6b6b}
-.chip--media{background:#3a3000;border-color:var(--warn);color:#ffd166}
-.chip--baja{background:#062b0b;border-color:var(--ok);color:#86efac}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
-.modal .box{width:680px;max-width:92vw;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
-.title{font-weight:800;margin:0 0 8px 0}
-#map{height:320px;border:1px dashed var(--line);border-radius:10px}
-.legend{margin-top:6px}
-@media (max-width:980px){ .g-2{grid-template-columns:1fr} }
-</style>
-<script> window.CIE297_API = '/api'; </script>
-<script>
-const API=(window.CIE297_API||'').replace(/\/+$/, '');
-const qs=s=>document.querySelector(s), qsa=s=>[...document.querySelectorAll(s)];
-const esc=s=>String(s??'').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]}));
-const authHeaders=()=>({'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('token')||'')});
-function fmtDateTime(iso){const d=new Date(iso||Date.now());const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),da=('0'+d.getDate()).slice(-2),hh=('0'+d.getHours()).slice(-2),mm=('0'+d.getMinutes()).slice(-2),ss=('0'+d.getSeconds()).slice(-2);return `${y}-${m}-${da} ${hh}:${mm}:${ss}`;}
-function chipNivel(n){n=(n||'').toUpperCase();const e=document.createElement('span');e.className='chip '+(n==='ALTA'?'chip--alta':n==='BAJA'?'chip--baja':'chip--media');e.textContent=n;return e;}
-async function parseJSONorText(resp){const txt=await resp.text();try{return{data:JSON.parse(txt),raw:txt}}catch{return{data:null,raw:txt}}}
-async function apiLogin(email,password){ const r=await fetch(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}); const {data,raw}=await parseJSONorText(r); if(!r.ok) throw new Error(`Login falló [${r.status}]: ${(data&&(data.message||data.error))||raw.slice(0,140)}`); localStorage.setItem('token',data.token); window._me=data.user; window._isAdmin=!!data.user?.is_admin; return data; }
-async function apiMe(){ const r=await fetch(`${API}/me`,{headers:authHeaders()}); if(!r.ok) return null; const {data}=await parseJSONorText(r); window._me=data.user; window._isAdmin=!!data.user?.is_admin; return data.user; }
-async function apiCreateAccount(p){ const r=await fetch(`${API}/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}); const {data,raw}=await parseJSONorText(r); if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'Error registrar'); return data; }
-async function apiSendReport(p){ const r=await fetch(`${API}/reports`,{method:'POST',headers:authHeaders(),body:JSON.stringify(p)}); const {data,raw}=await parseJSONorText(r); if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'Error enviar'); return data; }
-async function apiGetAlerts(limit=200){ const r=await fetch(`${API}/admin/alerts?limit=${limit}`,{headers:authHeaders()}); const {data,raw}=await parseJSONorText(r); if(!r.ok) throw new Error((data&&data.message)||raw.slice(0,140)||'Error listar'); return (data.items||[]).filter(x=>!x.sim); }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CIE-297 | Monitoreo en Tiempo Real</title>
+  <link rel="icon" href="assets/logo.png" />
 
-let map;
-function initMap(){ if(map) return; map = L.map('map').setView([-16.5,-68.15], 6); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map); }
+  <!-- Leaflet (solo si vas a usar el mapa) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
 
-async function sendQuick(){
-  const operacion=qs('#operacion').value; const nivel=qs('#nivel').value;
-  const pais_ciudad = qs('#paisCiudad').value.trim();
-  const lugar_cod = qs('#lugarCod').value;
-  const personalidad = qs('#personalidad').value;
-  const unidad_policial = qs('#unidadPolicial').value;
-  const accion_oponente = qs('#accionOponente').value;
-  const material_equipo = qs('#materialEquipo').value;
-  const transporte = qs('#transporte').value;
-  const otros = qs('#otros').value;
-  const clasificacion_seg = qs('#clasificacionSeg').value;
-  const tipo_doc = qs('#tipoDoc').value;
-  const color_code = qs('#colorCode').value.trim();
-  const msg=qs('#mensaje').value||'', libre=qs('#descripcion').value||'';
-  const descripcion = msg ? `[${msg}] ${libre}` : libre;
-  let lat=qs('#lat').value?+qs('#lat').value:null, lng=qs('#lng').value?+qs('#lng').value:null;
-
-  try{
-    const payload={operacion,nivel,descripcion,lat,lng,pais_ciudad,lugar_cod,personalidad,unidad_policial,accion_oponente,material_equipo,transporte,otros,clasificacion_seg,tipo_doc,color_code};
-    await apiSendReport(payload);
-    alert('Reporte enviado');
-    qs('#descripcion').value='';
-  }catch(e){ alert(e.message) }
-}
-function useLocation(){ if(!navigator.geolocation) return alert('Geolocalización no soportada'); navigator.geolocation.getCurrentPosition(p=>{qs('#lat').value=p.coords.latitude.toFixed(6);qs('#lng').value=p.coords.longitude.toFixed(6)},()=>alert('No se pudo obtener ubicación'),{enableHighAccuracy:true,timeout:7000}) }
-
-function render(v){ qsa('[data-view]').forEach(e=>e.classList.add('hidden')); qs(`[data-view="${v}"]`).classList.remove('hidden'); if(v==='dashboard'){qs('#btnLogout').classList.remove('hidden')} else {qs('#btnLogout').classList.add('hidden')} }
-async function doLogin(){ try{ await apiLogin(qs('#loginEmail').value.trim(), qs('#loginPass').value.trim()); render('dashboard'); }catch(e){ alert(e.message) } }
-async function createAccount(){ const p={ grado:qs('#grado').value, fuerza:qs('#fuerza').value, especialidad:qs('#especialidad').value.trim(), nombres:qs('#nombres').value.trim(), apellidos:qs('#apellidos').value.trim(), email:qs('#email').value.trim(), password:qs('#password').value.trim() }; try{ await apiCreateAccount(p); alert('Usuario creado. Inicia sesión.'); render('login'); } catch(e){ alert(e.message) } }
-function logout(){ localStorage.removeItem('token'); render('landing'); }
-
-function fillSelectRange(sel, prefix, start, end){ const el=qs(sel); el.innerHTML = el.querySelector('option') ? el.querySelector('option').outerHTML : ''; for(let i=start;i<=end;i++){ const v=prefix+String(i); const o=document.createElement('option'); o.textContent=v; o.value=v; el.appendChild(o); } }
-function fillSelectArray(sel, arr){ const el=qs(sel); el.innerHTML = el.querySelector('option') ? el.querySelector('option').outerHTML : ''; arr.forEach(v=>{const o=document.createElement('option'); o.textContent=v; o.value=v; el.appendChild(o);}); }
-
-window.addEventListener('DOMContentLoaded', async ()=>{
-  qs('#btnLogout').addEventListener('click',logout);
-  qs('#btnCreate').addEventListener('click',createAccount);
-  qs('#btnGoLogin').addEventListener('click',()=>render('login'));
-  qs('#btnLogin').addEventListener('click',doLogin);
-  qs('#btnBack').addEventListener('click',()=>render('landing'));
-  qs('#btnSend').addEventListener('click',sendQuick);
-  qs('#btnUseLocation').addEventListener('click',useLocation);
-  initMap();
-
-  fillSelectArray('#grado', ['','WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0']);
-  fillSelectArray('#fuerza', ['','MA','MB','MC','MD','ME','MF']);
-  fillSelectRange('#lugarCod', '', 352, 399);
-  const pers=[...Array(26)].map((_,i)=>'H'+String.fromCharCode(65+i)).concat(['H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE']);
-  fillSelectArray('#personalidad', [''].concat(pers));
-  fillSelectArray('#unidadPolicial', ['','0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9']);
-  fillSelectArray('#accionOponente', ['','KA','KN']);
-  const mat=[...Array(26)].map((_,i)=>'L'+String.fromCharCode(65+i)).concat(['L1','L2','L3','L4','L5','L6','L7']);
-  fillSelectArray('#materialEquipo', [''].concat(mat));
-  fillSelectArray('#transporte', [''].concat(Array.from({length:14},(_,i)=>'Y'+(i+1))));
-  const otros=['O1','O2','O3','O4','O5','O6','O7','O8','O9','OX','OY','ODE','ON','OT','OF','OG','OC','OPM','OE','OID','OS','OR','OH','OM','ODO','ODR'];
-  fillSelectArray('#otros', [''].concat(otros));
-  fillSelectArray('#clasificacionSeg',['','SAGITARIO','TAURO','GEMINIS','ARIES']);
-  const tiposDoc=[]; const suf=['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P']; for(let i=1;i<=16;i++){ tiposDoc.push(`Z${i}${suf[i-1]}`); } fillSelectArray('#tipoDoc', [''].concat(tiposDoc));
-
-  const me=await apiMe(); if(me){ render('dashboard'); } else { render('landing'); }
-});
-</script>
+  <style>
+    :root{
+      --bg:#0b1424;--card:#101b31;--soft:#12213b;--text:#e5ecff;--muted:#93a4c7;
+      --ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--line:rgba(255,255,255,.08);
+      --chip:#152238;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
+    a{color:inherit}
+    .wrap{max-width:1100px;margin:0 auto;padding:24px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+    h1{font-size:22px;margin:0 0 8px}
+    h2{font-size:18px;margin:12px 0}
+    label{display:block;font-size:14px;margin:10px 0 6px}
+    input,select,textarea,button{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:#0e1a31;color:var(--text)}
+    textarea{min-height:84px;resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .mt{margin-top:14px}
+    .btn{cursor:pointer;border:1px solid var(--line)}
+    .btn-ok{background:var(--ok);color:#08120b;border:none}
+    .btn-warn{background:var(--warn);color:#1b1207;border:none}
+    .btn-danger{background:var(--danger);color:#220b0b;border:none}
+    .chip{display:inline-block;padding:4px 8px;border-radius:999px;background:var(--chip);border:1px solid var(--line);font-size:12px}
+    .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .hide{display:none}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{padding:10px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+    th{text-align:left;color:var(--muted)}
+    .right{text-align:right}
+    .muted{color:var(--muted)}
+    .center{text-align:center}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .topbar img{height:36px}
+    .link{cursor:pointer;text-decoration:underline}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media (max-width:880px){.row,.row3,.grid{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
-<header class="appbar">
-  <div class="brand">
-    <img src="assets/logo.png" alt="logo">
-    <span>CIE-297 | Monitoreo en Tiempo Real <span id="hello" class="muted"></span></span>
-  </div>
-  <div class="actions">
-    <button id="btnLogout" class="btn btn-danger hidden">Cerrar sesión</button>
-  </div>
-</header>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="flex">
+        <img src="assets/logo.png" alt="CIE-297" />
+        <div>
+          <div class="chip">CIE-297</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">Monitoreo en tiempo real</div>
+        </div>
+      </div>
+      <div id="sessionBox" class="flex">
+        <span id="whoami" class="muted"></span>
+        <button class="btn" id="btnLogout" onclick="logout()" title="Cerrar sesión">Salir</button>
+      </div>
+    </div>
 
-<div class="container">
-  <section class="card" data-view="landing">
-    <h3>Registro</h3>
-    <div class="grid" style="grid-template-columns:1fr auto">
-      <div class="col">
+    <!-- Auth -->
+    <div id="auth" class="grid">
+      <div class="card">
+        <h1>Iniciar sesión</h1>
+        <label>Email</label>
+        <input id="loginEmail" type="email" placeholder="usuario@cie297.mil" />
+        <label>Contraseña</label>
+        <input id="loginPass" type="password" placeholder="••••••" />
+        <button class="btn btn-ok mt" onclick="doLogin()">Entrar</button>
+        <p class="muted mt">
+          Tips: existen usuarios de prueba<br/>
+          <code>admin@cie297.mil / 123456</code> (Admin)<br/>
+          <code>user@cie297.mil / 123456</code> (Operador)
+        </p>
+      </div>
+
+      <div class="card">
+        <h1>Crear cuenta</h1>
         <div class="row">
-          <select id="grado" class="control" style="max-width:200px">
-            <option value="" selected disabled>Grado (WW/W1…W0)</option>
-          </select>
-          <select id="fuerza" class="control" style="max-width:200px">
-            <option value="" selected disabled>Fuerza (MA…MF)</option>
-          </select>
-          <input id="especialidad" placeholder="Especialidad" class="control" style="flex:1">
+          <div>
+            <label>Nombre</label>
+            <input id="regNombre" placeholder="Nombre y apellido" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input id="regEmail" type="email" placeholder="nombre@cie297.mil" />
+          </div>
         </div>
-        <div class="row"><input id="nombres" placeholder="Nombres" class="control" style="flex:1"><input id="apellidos" placeholder="Apellidos" class="control" style="flex:1"></div>
-        <div class="row"><input id="email" placeholder="Email" class="control" style="flex:1"><input id="password" type="password" placeholder="Contraseña" class="control" style="flex:1"></div>
-        <div class="right">
-          <button id="btnCreate" class="btn">Crear cuenta</button>
-          <button id="btnGoLogin" class="btn btn-secondary" style="margin-left:8px">Iniciar sesión</button>
+        <div class="row">
+          <div>
+            <label>Contraseña</label>
+            <input id="regPass" type="password" placeholder="••••••" />
+          </div>
+          <div>
+            <label>Repetir contraseña</label>
+            <input id="regPass2" type="password" placeholder="••••••" />
+          </div>
         </div>
+        <div class="row">
+          <div>
+            <label>Grado (WW/W1…W0)</label>
+            <select id="regGrado"></select>
+          </div>
+          <div>
+            <label>Fuerza (MA…MF)</label>
+            <select id="regFuerza"></select>
+          </div>
+        </div>
+        <button class="btn btn-warn mt" onclick="doRegister()">Registrarme</button>
       </div>
     </div>
-    <p class="muted">© CIE-297 · Prototipo académico · Tiempo real</p>
-  </section>
 
-  <section class="card hidden" data-view="login">
-    <h3>Iniciar sesión</h3>
-    <div class="col" style="gap:8px;max-width:520px">
-      <input id="loginEmail" class="control" placeholder="email">
-      <input id="loginPass" type="password" class="control" placeholder="contraseña">
-      <div class="row" style="gap:8px">
-        <button id="btnLogin" class="btn">Entrar</button>
-        <button id="btnBack" class="btn btn-secondary">Cerrar</button>
+    <!-- Panel Usuario -->
+    <div id="panelUsuario" class="hide">
+      <div class="card">
+        <h1>Nuevo reporte</h1>
+        <div class="row3">
+          <div>
+            <label>Nivel</label>
+            <select id="repNivel">
+              <option value="ALTA">ALTA (CRÍTICO)</option>
+              <option value="MEDIA">MEDIA (RELEVANTE)</option>
+              <option value="BAJA">BAJA (NO PRIORITARIA)</option>
+            </select>
+          </div>
+          <div>
+            <label>Operación</label>
+            <input id="repOperacion" placeholder="Ej. Operación Centinela" />
+          </div>
+          <div>
+            <label>País - Ciudad</label>
+            <input id="repLugar" placeholder="Bolivia - La Paz" />
+          </div>
+        </div>
+        <label>Detalle</label>
+        <textarea id="repDetalle" placeholder="Describe brevemente el evento..."></textarea>
+        <button class="btn btn-ok mt" onclick="enviarReporte()">Enviar reporte</button>
+      </div>
+
+      <div class="card mt">
+        <h2>Alertas (recientes)</h2>
+        <div class="muted" style="font-size:13px">Tus reportes más recientes (ordenados con el último primero).</div>
+        <table id="tablaAlertas">
+          <thead>
+            <tr><th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>Lugar</th><th>Detalle</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
-  </section>
 
-  <section class="grid g-2 hidden" data-view="dashboard">
-    <div class="card">
-      <h3>Área Operativa</h3>
-      <div id="map"></div>
-      <div class="muted legend">Leyenda: <span class="chip chip--baja">BAJA</span> <span class="chip chip--media">MEDIA</span> <span class="chip chip--alta">ALTA</span></div>
-    </div>
-
-    <div class="card" style="grid-column:1 / -1">
-      <h3>Misiones / Reportes rápidos</h3>
-      <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div class="col">
-          <label>Operaciones</label>
-          <select id="operacion" class="control">
-            <option>UBICACIÓN LUGAR Y DIRECCIÓN</option><option>RETOMA DE INSTALACIONES</option><option>RESCATE DE REHENES</option><option>PATRULLAJE</option><option>CONTROL DE LA POBLACIÓN</option><option>AISLAR EL ÁREA</option><option>EMBOSCADA</option><option>GOLPE DE MANO</option><option>RECONOCIMIENTO</option><option>PERSECUCIÓN</option><option>DESTRUCCIÓN</option><option>INFILTRACIÓN</option><option>PLANEAMIENTO</option><option>EVACUACIÓN</option><option>EXFILTRACIÓN</option><option>ENVIAR REFUERZOS</option><option>NOS ATACAN</option><option>ALISTAMIENTO</option><option>MOV. HELITRANSPORTAD</option><option>MOV. FLUVIAL</option><option>MOV. POR VEHICULO TIE.</option><option>MOV. A PIE</option><option>MOV. ÁEREO</option><option>OP. AEROTRANSPORTADA</option><option>OP. DE INTELIGENCIA</option><option>OP. DE SEG.DIGNATARIOS</option><option>OP. DE SEGURIDAD</option><option>OP. DE PPI</option><option>OP. CONTRAINTELIGENCIA</option><option>OP. HELITRANSPORTADA</option><option>OP. PSICOLÓGICAS</option><option>SECUESTRO</option><option>ABASTECIMIENTO</option><option>EJERCICIO DE ENTRENAMIENTO</option><option>PLAN DE LLAMADAS</option><option>PRE ALERTA</option><option>ALERTA</option>
-          </select>
+    <!-- Panel Admin -->
+    <div id="panelAdmin" class="hide">
+      <div class="card">
+        <h1>Panel Administrador</h1>
+        <div class="flex">
+          <button class="btn btn-ok" onclick="cargarAlertasAdmin()">Ver todas las alertas</button>
+          <button class="btn" onclick="cargarAccesos()">Ver accesos</button>
         </div>
-        <div class="col">
-          <label>Nivel</label>
-          <select id="nivel" class="control"><option>ALTA</option><option selected>MEDIA</option><option>BAJA</option></select>
-        </div>
-        <div class="col">
-          <label>País / Ciudad</label>
-          <input id="paisCiudad" class="control" placeholder="Ej.: Bolivia / La Paz" />
-        </div>
-        <div class="col">
-          <label>Lugar</label>
-          <select id="lugarCod" class="control"><option value="" selected disabled>352…399</option></select>
-        </div>
-        <div class="col">
-          <label>Personalidades</label>
-          <select id="personalidad" class="control"><option value="" selected disabled>HA…HZ, H1–H5…</option></select>
-        </div>
-        <div class="col">
-          <label>Unidad Policial</label>
-          <select id="unidadPolicial" class="control"><option value="" selected disabled>0Y1…0Y9</option></select>
-        </div>
-        <div class="col">
-          <label>Acciones del oponente</label>
-          <select id="accionOponente" class="control"><option value="" selected disabled>KA / KN</option></select>
-        </div>
-        <div class="col">
-          <label>Material / Equipo</label>
-          <select id="materialEquipo" class="control"><option value="" selected disabled>LA…LZ, L1…L7</option></select>
-        </div>
-        <div class="col">
-          <label>Transporte</label>
-          <select id="transporte" class="control"><option value="" selected disabled>Y1…Y14</option></select>
-        </div>
-        <div class="col">
-          <label>Otros</label>
-          <select id="otros" class="control"><option value="" selected disabled>O1…O9, OX, OY, ODE…</option></select>
-        </div>
-        <div class="col">
-          <label>Clasificación SEG</label>
-          <select id="clasificacionSeg" class="control"><option value="" selected disabled>— seleccionar —</option></select>
-        </div>
-        <div class="col">
-          <label>Tipo de documento</label>
-          <select id="tipoDoc" class="control"><option value="" selected disabled>Z1A…Z16P</option></select>
-        </div>
-        <div class="col" style="grid-column:1 / -1">
-          <label>Código indicativo de color</label>
-          <input id="colorCode" class="control" placeholder="Ej.: ROJO-3 / VERDE-1 / etc." />
-        </div>
-        <div class="col">
-          <label>Mensaje</label>
-          <select id="mensaje" class="control">
-            <option value="">— seleccionar —</option>
-            <option>PETA</option><option>LAMBO</option><option>TRICICLO</option><option>PATINETA</option>
-            <option>FRUTAS</option><option>MOTOBOMBA</option><option>CUCHARA</option><option>TENEDOR</option>
-            <option>CHISGUETE</option><option>PINTURA ROJA</option><option>PINTURA NARANJA</option>
-            <option>PINTURA AZUL</option><option>PINTURA VERDE</option><option>PINTURA AMARILLA</option><option>PINTURA CAFE</option>
-            <option>YENAS</option><option>LOBOS</option><option>LIEBRES</option><option>JUGANDO</option>
-            <option>RIO PILCOMAYO</option><option>LAGUNA ESCOBAR</option><option>MALLASA</option><option>CIELO NUBLADO</option>
-            <option>HOTEL RADISSON</option><option>HERRADURA</option><option>FEDERAL</option><option>CAIMAN</option><option>LAGARTOS</option>
-          </select>
-        </div>
-        <div class="col">
-          <label>Ubicación</label>
-          <div class="row"><input id="lat" class="control" placeholder="lat"><input id="lng" class="control" placeholder="lng"><button id="btnUseLocation" class="btn">Usar ubicación</button></div>
-        </div>
-        <div class="col" style="grid-column:1 / -1"><label>Descripción</label><textarea id="descripcion" class="control" rows="3" placeholder="Detallar lo ocurrido…"></textarea></div>
       </div>
-      <div class="right" style="margin-top:8px"><button id="btnSend" class="btn">Enviar</button></div>
-    </div>
 
-    <div class="card" style="grid-column:1 / -1">
-      <div class="row" style="justify-content:space-between;align-items:center"><h3>Alertas (recientes)</h3></div>
-      <div class="table-wrap">
-        <table><thead><tr>
-          <th>ID</th><th>Fecha</th><th>Nivel</th><th>Operación</th><th>Usuario</th><th>Ubicación</th>
-          <th>País/Ciudad</th><th>Lugar</th><th>Personalidad</th><th>Unidad Policial</th>
-          <th>Acción Oponente</th><th>Material/Equipo</th><th>Transporte</th><th>Otros</th>
-          <th>Clasificación SEG</th><th>Tipo Doc</th><th>Código color</th><th>Descripción</th>
-        </tr></thead><tbody id="listLatest"></tbody></table>
+      <div class="card mt">
+        <h2>Alertas</h2>
+        <table id="tablaAdminAlertas">
+          <thead>
+            <tr><th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>Lugar</th><th>Detalle</th><th>Usuario</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card mt">
+        <h2>Accesos</h2>
+        <table id="tablaAccesos">
+          <thead>
+            <tr><th>Fecha/Hora</th><th>Email</th><th>Nombre</th><th>IP</th><th>Estado</th><th class="right">Acciones</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
-  </section>
-</div>
+
+    <p class="center muted mt">© CIE-297</p>
+  </div>
+
+  <script>
+    // API base: Vercel hará proxy /api → Render (ajustado en vercel.json)
+    const API = '/api';
+
+    // --- Helpers sesión ---
+    function getToken(){ return localStorage.getItem('token') || ''; }
+    function setToken(t){ localStorage.setItem('token', t||''); }
+    function setUser(u){ localStorage.setItem('user', JSON.stringify(u||{})); }
+    function getUser(){ try{return JSON.parse(localStorage.getItem('user')||'{}')}catch{return{}} }
+
+    function show(id){ document.getElementById(id).classList.remove('hide'); }
+    function hide(id){ document.getElementById(id).classList.add('hide'); }
+
+    function toast(msg){ alert(msg); }
+
+    // Combos solicitados
+    const GRADOS = ['WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0'];
+    const FUERZAS = ['MA','MB','MC','MD','ME','MF'];
+
+    function fillSelect(sel, arr){
+      sel.innerHTML = '';
+      arr.forEach(v=>{
+        const o=document.createElement('option');
+        o.value=v; o.textContent=v;
+        sel.appendChild(o);
+      });
+    }
+
+    async function doLogin(){
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPass').value;
+      if(!email || !password){ return toast('Completa email y contraseña'); }
+      try{
+        const r = await fetch(`${API}/login`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ email, password })
+        });
+        const data = await r.json();
+        if(!r.ok) throw new Error(data.message||'Error de login');
+        setToken(data.token);
+        setUser(data.user||{});
+        toast('Sesión iniciada');
+        routeByRole();
+      }catch(e){ toast(e.message); }
+    }
+
+    async function doRegister(){
+      const nombre = document.getElementById('regNombre').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const pass = document.getElementById('regPass').value;
+      const pass2 = document.getElementById('regPass2').value;
+      const grado = document.getElementById('regGrado').value;
+      const fuerza = document.getElementById('regFuerza').value;
+      if(!nombre || !email || !pass || !pass2){ return toast('Completa todos los campos'); }
+      if(pass!==pass2){ return toast('Las contraseñas no coinciden'); }
+      try{
+        const r = await fetch(`${API}/register`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ nombre, email, password: pass, grado, fuerza })
+        });
+        const data = await r.json();
+        if(!r.ok) throw new Error(data.message||'No se pudo registrar');
+        toast('Cuenta creada, ahora inicia sesión.');
+      }catch(e){ toast(e.message); }
+    }
+
+    function logout(){
+      setToken('');
+      setUser({});
+      location.reload();
+    }
+
+    function routeByRole(){
+      const u=getUser();
+      const who = document.getElementById('whoami');
+      const sessionBox = document.getElementById('sessionBox');
+      who.textContent = u?.email ? `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'} ` : '';
+      if(u?.email){ sessionBox.classList.remove('hide'); } else { sessionBox.classList.add('hide'); }
+
+      hide('auth'); hide('panelUsuario'); hide('panelAdmin');
+      if(u?.is_admin){ show('panelAdmin'); cargarAlertasAdmin(); cargarAccesos(); }
+      else if(u?.email){ show('panelUsuario'); cargarAlertasUsuario(); }
+      else { show('auth'); }
+    }
+
+    async function enviarReporte(){
+      const nivel = document.getElementById('repNivel').value;
+      const operacion = document.getElementById('repOperacion').value.trim();
+      const lugar = document.getElementById('repLugar').value.trim();
+      const detalle = document.getElementById('repDetalle').value.trim();
+      if(!operacion || !lugar || !detalle){ return toast('Completa operación, lugar y detalle'); }
+      try{
+        const r = await fetch(`${API}/reports`,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':'Bearer '+getToken()
+          },
+          body: JSON.stringify({ nivel, operacion, lugar, detalle })
+        });
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.message||'No se pudo enviar');
+        toast('Reporte enviado');
+        document.getElementById('repDetalle').value='';
+        cargarAlertasUsuario();
+      }catch(e){ toast(e.message); }
+    }
+
+    function renderTable(tbody, rows){
+      tbody.innerHTML='';
+      rows.forEach(o=>{
+        const tr=document.createElement('tr');
+        const td = (v)=>{ const c=document.createElement('td'); c.innerHTML=v; return c; };
+        tr.appendChild(td(new Date(o.fecha||o.created_at||Date.now()).toLocaleString()));
+        tr.appendChild(td(`<span class="chip">${o.nivel||'-'}</span>`));
+        tr.appendChild(td(o.operacion||'-'));
+        tr.appendChild(td(o.lugar||'-'));
+        tr.appendChild(td(o.detalle||'-'));
+        if(o.usuario){
+          tr.appendChild(td(`${o.usuario.email||'-'}`));
+        }
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function cargarAlertasUsuario(){
+      try{
+        const r = await fetch(`${API}/admin/alerts`,{ // el backend devuelve todo; filtramos cliente si hace falta
+          headers:{'Authorization':'Bearer '+getToken()}
+        });
+        const data = await r.json();
+        if(!r.ok) throw new Error(data.message||'Error al cargar');
+        // para usuario mostramos todo igual (o se podría filtrar por email)
+        const body = document.querySelector('#tablaAlertas tbody');
+        renderTable(body, data.alertas||[]);
+      }catch(e){ toast(e.message); }
+    }
+
+    async function cargarAlertasAdmin(){
+      try{
+        const r = await fetch(`${API}/admin/alerts`,{
+          headers:{'Authorization':'Bearer '+getToken()}
+        });
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.message||'Error al cargar');
+        const body = document.querySelector('#tablaAdminAlertas tbody');
+        renderTable(body, data.alertas||[]);
+      }catch(e){ toast(e.message); }
+    }
+
+    async function cargarAccesos(){
+      try{
+        const r = await fetch(`${API}/admin/access`,{
+          headers:{'Authorization':'Bearer '+getToken()}
+        });
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.message||'Error al cargar accesos');
+        const body = document.querySelector('#tablaAccesos tbody');
+        body.innerHTML='';
+        (data.accesos||[]).forEach(a=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML = `
+            <td>${new Date(a.fecha||Date.now()).toLocaleString()}</td>
+            <td>${a.email||'-'}</td>
+            <td>${a.nombre||'-'}</td>
+            <td>${a.ip||'-'}</td>
+            <td><span class="chip">${a.estado||'OK'}</span></td>
+            <td class="right">
+              <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
+              <button class="btn btn-danger" style="margin-left:8px" onclick="eliminarAccesos('${a.email||''}')">Eliminar</button>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
+      }catch(e){ toast(e.message); }
+    }
+
+    async function bloquearAcceso(email){
+      if(!email) return;
+      try{
+        const r = await fetch(`${API}/admin/access/block`,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':'Bearer '+getToken()
+          },
+          body: JSON.stringify({ email })
+        });
+        if(r.status===404){ toast('El backend aún no implementa /admin/access/block. (No es error)'); return; }
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.message||'No se pudo bloquear');
+        toast('Acceso bloqueado'); cargarAccesos();
+      }catch(e){ toast(e.message); }
+    }
+
+    async function eliminarAccesos(email){
+      if(!email) return;
+      try{
+        const r = await fetch(`${API}/admin/access`,{
+          method:'DELETE',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':'Bearer '+getToken()
+          },
+          body: JSON.stringify({ email })
+        });
+        if(r.status===404){ toast('El backend aún no implementa DELETE /admin/access. (No es error)'); return; }
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.message||'No se pudo eliminar');
+        toast('Accesos eliminados'); cargarAccesos();
+      }catch(e){ toast(e.message); }
+    }
+
+    // Init
+    (function init(){
+      // combos de registro
+      fillSelect(document.getElementById('regGrado'), GRADOS);
+      fillSelect(document.getElementById('regFuerza'), FUERZAS);
+
+      // estado de sesión
+      const u=getUser();
+      if(!u?.email){
+        hide('panelUsuario'); hide('panelAdmin'); show('auth');
+        document.getElementById('sessionBox').classList.add('hide');
+      }else{
+        routeByRole();
+      }
+    })();
+  </script>
 </body>
 </html>
