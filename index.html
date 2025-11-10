@@ -345,7 +345,7 @@
     function fillSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }); }
 
     // ===== Mapa & Agentes
-    let map, agentsLayer;
+    let map, agentsLayer, _myMarker; /* <-- agregado: marcador propio */
     function initMap(){
       if(map) return;
       map = L.map('map').setView([-16.5,-68.15], 5);
@@ -372,6 +372,15 @@
         case 'AZUL': return '#3b82f6'; case 'NEGRO': return '#0f172a'; case 'BLANCO': return '#e5ecff';
         default: return '#94a3b8';
       }
+    }
+
+    // (agregado) pinta/actualiza TU marcador en el mapa
+    function updateMyMarker(lat, lng){
+      if(!map) return;
+      const color = $('repColor')?.value || 'VERDE';
+      const icon = L.divIcon({className:'',html:`<div style="width:16px;height:16px;border-radius:50%;border:2px solid #fff;background:${colorHEX(color)};box-shadow:0 0 0 3px rgba(255,255,255,.2)"></div>`});
+      if(_myMarker){ _myMarker.setLatLng([lat,lng]); _myMarker.setIcon(icon); }
+      else{ _myMarker = L.marker([lat,lng],{icon}).addTo(map).bindPopup('<b>Mi ubicación</b>'); }
     }
 
     // ===== Navegación Operativo/Admin
@@ -428,16 +437,30 @@
     function toggleLogin(on){ $('loginCard').classList.toggle('hide', !on); }
 
     // ===== Ubicación manual del reporte
-    function usarMiUbicacion(){
+    async function usarMiUbicacion(){
       if(!navigator.geolocation){ toast('Geolocalización no disponible'); return; }
       $('btnUbicacion').disabled = true;
       navigator.geolocation.getCurrentPosition(
-        pos=>{
-          $('repLat').value = pos.coords.latitude.toFixed(6);
-          $('repLng').value = pos.coords.longitude.toFixed(6);
+        async pos=>{
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          $('repLat').value = lat;
+          $('repLng').value = lng;
+          // (agregado) centrar mapa + dibujar mi marcador
+          if(map){ map.setView([lat,lng], Math.max(map.getZoom(), 14)); }
+          updateMyMarker(lat, lng);
+          // (agregado) enviar al backend para que aparezca para todos
+          try{
+            await fetch(`${API}/position`,{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+              body:JSON.stringify({lat,lng,color:$('repColor')?.value||'VERDE'})
+            });
+            refreshAgents();
+          }catch(_){}
           $('btnUbicacion').disabled = false;
         },
-        err=>{ toast('No se pudo obtener ubicación'); $('btnUbicacion').disabled=false; },
+        _=>{ toast('No se pudo obtener ubicación'); $('btnUbicacion').disabled=false; },
         {enableHighAccuracy:true,timeout:8000}
       );
     }
@@ -466,16 +489,14 @@
         const r=await fetch(`${API}/reports`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify(p)});
         const data=await r.json();
         if(r.ok){
-          // usar respuesta si trae la alerta
           const alerta = data.alerta || {...p, fecha:Date.now()};
-          addLocalAlert(alerta);           // respaldo local para que se vea sí o sí
-          cargarAlertasUsuario();          // refresca feed + tabla
+          addLocalAlert(alerta);
+          cargarAlertasUsuario();
           toast('Reporte enviado');
         }else{
           throw new Error(data.message||'No se pudo enviar');
         }
       }catch(e){
-        // último recurso: también guardamos local si falla
         addLocalAlert({...p, fecha:Date.now()});
         cargarAlertasUsuario();
         toast('Enviado en modo local (sin backend): '+e.message);
@@ -488,7 +509,6 @@
         const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
         const data=await r.json(); if(r.ok) server = data.alertas||[];
       }catch(_){}
-      // mezcla con locales (sin duplicar por timestamp + texto)
       const local = getLocalAlerts();
       const all = dedupeAlerts([...local, ...server]);
       renderFeed(all); renderTableUser(all);
@@ -561,7 +581,6 @@
     }
 
     function exportarPDF(){
-      // imprime la tabla actualmente renderizada (mezcla server + local)
       const html = document.getElementById('tablaAlertas').outerHTML;
       const doc = `<!doctype html><html><head><meta charset="utf-8"><title>Alertas</title>
       <style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;font-family:Arial,sans-serif;font-size:12px}</style>
@@ -619,7 +638,6 @@
         if(!r.ok) throw new Error('server');
         cargarAccesos();
       }catch(_){
-        // borra del respaldo local
         const rest=getLocalAccess().filter(x=>x.email!==email); localStorage.setItem('localAccess',JSON.stringify(rest));
         cargarAccesos();
       }
@@ -632,7 +650,6 @@
 
     // Init
     (function init(){
-      // combos registro y reportes
       const ids=[['regGrado',GRADOS],['regFuerza',FUERZAS],['repOperacion',OPERACIONES],['repLugar',LUGARES],
                  ['repPersonalidad',PERSONALIDADES],['repUnidad',UNIDADES],['repAccionOponente',ACCIONES_OP],
                  ['repMaterial',MATERIAL],['repTransporte',TRANSP],['repOtros',OTROS],['repTipoDoc',TIPODOC]];
