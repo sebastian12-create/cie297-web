@@ -6,13 +6,19 @@
   <title>CIE-297 | Monitoreo en Tiempo Real</title>
   <link rel="icon" href="assets/logo.png" />
 
-  <!-- Leaflet (solo si vas a usar el mapa) -->
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+    defer
+  ></script>
 
   <style>
     :root{
@@ -23,7 +29,7 @@
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
     a{color:inherit}
-    .wrap{max-width:1100px;margin:0 auto;padding:24px}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
     h1{font-size:22px;margin:0 0 8px}
     h2{font-size:18px;margin:12px 0}
@@ -48,9 +54,9 @@
     .center{text-align:center}
     .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
     .topbar img{height:36px}
-    .link{cursor:pointer;text-decoration:underline}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    @media (max-width:880px){.row,.row3,.grid{grid-template-columns:1fr}}
+    #map{width:100%;height:380px;border-radius:14px;border:1px solid var(--line);margin-top:8px}
+    @media (max-width:980px){.row,.row3,.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -63,28 +69,15 @@
           <div class="muted" style="font-size:12px;margin-top:4px">Monitoreo en tiempo real</div>
         </div>
       </div>
-      <div id="sessionBox" class="flex">
+      <div id="sessionBox" class="flex hide">
         <span id="whoami" class="muted"></span>
         <button class="btn" id="btnLogout" onclick="logout()" title="Cerrar sesión">Salir</button>
       </div>
     </div>
 
-    <!-- Auth -->
+    <!-- LANDING: SOLO REGISTRO + BOTÓN PARA MOSTRAR LOGIN -->
     <div id="auth" class="grid">
-      <div class="card">
-        <h1>Iniciar sesión</h1>
-        <label>Email</label>
-        <input id="loginEmail" type="email" placeholder="usuario@cie297.mil" />
-        <label>Contraseña</label>
-        <input id="loginPass" type="password" placeholder="••••••" />
-        <button class="btn btn-ok mt" onclick="doLogin()">Entrar</button>
-        <p class="muted mt">
-          Tips: existen usuarios de prueba<br/>
-          <code>admin@cie297.mil / 123456</code> (Admin)<br/>
-          <code>user@cie297.mil / 123456</code> (Operador)
-        </p>
-      </div>
-
+      <!-- REGISTRO -->
       <div class="card">
         <h1>Crear cuenta</h1>
         <div class="row">
@@ -118,13 +111,40 @@
           </div>
         </div>
         <button class="btn btn-warn mt" onclick="doRegister()">Registrarme</button>
+        <p class="muted mt" style="font-size:13px">¿Ya tienes cuenta?</p>
+        <button class="btn mt" onclick="toggleLogin(true)">Iniciar sesión</button>
+      </div>
+
+      <!-- LOGIN (OCULTO HASTA PULSAR “INICIAR SESIÓN”) -->
+      <div class="card hide" id="loginCard">
+        <h1>Iniciar sesión</h1>
+        <label>Email</label>
+        <input id="loginEmail" type="email" placeholder="usuario@cie297.mil" />
+        <label>Contraseña</label>
+        <input id="loginPass" type="password" placeholder="••••••" />
+        <button class="btn btn-ok mt" onclick="doLogin()">Entrar</button>
+        <p class="muted mt">
+          Usuarios de prueba:<br/>
+          <code>admin@cie297.mil / 123456</code> (Admin)<br/>
+          <code>user@cie297.mil / 123456</code> (Operador)
+        </p>
+        <button class="btn mt" onclick="toggleLogin(false)">Ocultar</button>
       </div>
     </div>
 
-    <!-- Panel Usuario -->
+    <!-- PANEL USUARIO (MAPA + MISIONES/REPORTES + ALERTAS) -->
     <div id="panelUsuario" class="hide">
       <div class="card">
-        <h1>Nuevo reporte</h1>
+        <h1>Área Operativa</h1>
+        <div id="map"></div>
+        <div class="muted" style="font-size:12px;margin-top:6px">
+          Mapa con ubicaciones de agentes activos (al iniciar sesión se registra tu ubicación con tu color indicativo).
+        </div>
+      </div>
+
+      <div class="card mt">
+        <h1>Misiones y Reportes</h1>
+
         <div class="row3">
           <div>
             <label>Nivel</label>
@@ -135,37 +155,118 @@
             </select>
           </div>
           <div>
-            <label>Operación</label>
-            <input id="repOperacion" placeholder="Ej. Operación Centinela" />
+            <label>Operaciones</label>
+            <select id="repOperacion"></select>
           </div>
           <div>
-            <label>País - Ciudad</label>
-            <input id="repLugar" placeholder="Bolivia - La Paz" />
+            <label>Código indicativo de color</label>
+            <select id="repColor">
+              <option value="ROJO">ROJO</option>
+              <option value="AMARILLO">AMARILLO</option>
+              <option value="VERDE">VERDE</option>
+              <option value="AZUL">AZUL</option>
+              <option value="NEGRO">NEGRO</option>
+              <option value="BLANCO">BLANCO</option>
+            </select>
           </div>
         </div>
-        <label>Detalle</label>
-        <textarea id="repDetalle" placeholder="Describe brevemente el evento..."></textarea>
-        <button class="btn btn-ok mt" onclick="enviarReporte()">Enviar reporte</button>
+
+        <div class="row3">
+          <div>
+            <label>País / Ciudad</label>
+            <input id="repPaisCiudad" placeholder="Bolivia - La Paz" />
+          </div>
+          <div>
+            <label>Lugar (352–399)</label>
+            <select id="repLugar"></select>
+          </div>
+          <div>
+            <label>Personalidades</label>
+            <select id="repPersonalidad"></select>
+          </div>
+        </div>
+
+        <div class="row3">
+          <div>
+            <label>Unidad Policial (0Y1–0Y9)</label>
+            <select id="repUnidad"></select>
+          </div>
+          <div>
+            <label>Acciones del oponente (KA–KN)</label>
+            <select id="repAccionOponente"></select>
+          </div>
+          <div>
+            <label>Material / Equipo (LA–LZ, L1–L7)</label>
+            <select id="repMaterial"></select>
+          </div>
+        </div>
+
+        <div class="row3">
+          <div>
+            <label>Transporte (Y1–Y14)</label>
+            <select id="repTransporte"></select>
+          </div>
+          <div>
+            <label>Otros (O1–O9, OX, OY, ODE, ON, OT, OF, OG, OC, OPM, OE, OID, OS, OR, OH, OM, ODO, ODR)</label>
+            <select id="repOtros"></select>
+          </div>
+          <div>
+            <label>Clasificación SEG</label>
+            <select id="repClasif">
+              <option value="SAGITARIO">SAGITARIO</option>
+              <option value="TAURO">TAURO</option>
+              <option value="GEMINIS">GEMINIS</option>
+              <option value="ARIES">ARIES</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Tipo de documento</label>
+            <select id="repTipoDoc"></select>
+          </div>
+          <div>
+            <label>Detalle</label>
+            <input id="repDetalle" placeholder="Descripción breve del evento" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Latitud</label>
+            <input id="repLat" type="number" step="any" placeholder="p.ej. -16.5" />
+          </div>
+          <div>
+            <label>Longitud</label>
+            <input id="repLng" type="number" step="any" placeholder="p.ej. -68.15" />
+          </div>
+        </div>
+
+        <button class="btn btn-ok mt" onclick="enviarReporte()">Enviar alerta</button>
       </div>
 
       <div class="card mt">
-        <h2>Alertas (recientes)</h2>
-        <div class="muted" style="font-size:13px">Tus reportes más recientes (ordenados con el último primero).</div>
+        <h2>Alertas (enviadas manualmente)</h2>
         <table id="tablaAlertas">
           <thead>
-            <tr><th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>Lugar</th><th>Detalle</th></tr>
+            <tr>
+              <th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>País/Ciudad</th>
+              <th>Lugar</th><th>Clasif</th><th>Lat</th><th>Lng</th><th>Detalle</th>
+            </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
     </div>
 
-    <!-- Panel Admin -->
+    <!-- PANEL ADMIN -->
     <div id="panelAdmin" class="hide">
       <div class="card">
         <h1>Panel Administrador</h1>
         <div class="flex">
           <button class="btn btn-ok" onclick="cargarAlertasAdmin()">Ver todas las alertas</button>
+          <button class="btn" onclick="exportarPDF()">Exportar PDF</button>
           <button class="btn" onclick="cargarAccesos()">Ver accesos</button>
         </div>
       </div>
@@ -174,7 +275,10 @@
         <h2>Alertas</h2>
         <table id="tablaAdminAlertas">
           <thead>
-            <tr><th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>Lugar</th><th>Detalle</th><th>Usuario</th></tr>
+            <tr>
+              <th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>País/Ciudad</th>
+              <th>Lugar</th><th>Clasif</th><th>Lat</th><th>Lng</th><th>Detalle</th><th>Usuario</th>
+            </tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -195,37 +299,96 @@
   </div>
 
   <script>
-    // API base: Vercel hará proxy /api → Render (ajustado en vercel.json)
     const API = '/api';
 
     // --- Helpers sesión ---
+    const $ = (id)=>document.getElementById(id);
     function getToken(){ return localStorage.getItem('token') || ''; }
     function setToken(t){ localStorage.setItem('token', t||''); }
     function setUser(u){ localStorage.setItem('user', JSON.stringify(u||{})); }
     function getUser(){ try{return JSON.parse(localStorage.getItem('user')||'{}')}catch{return{}} }
+    function show(id){ $(id).classList.remove('hide'); }
+    function hide(id){ $(id).classList.add('hide'); }
+    function toast(m){ alert(m); }
 
-    function show(id){ document.getElementById(id).classList.remove('hide'); }
-    function hide(id){ document.getElementById(id).classList.add('hide'); }
+    function toggleLogin(showLogin){
+      if(showLogin){ $('loginCard').classList.remove('hide'); }
+      else { $('loginCard').classList.add('hide'); }
+    }
 
-    function toast(msg){ alert(msg); }
-
-    // Combos solicitados
+    // --- Catálogos pedidos ---
     const GRADOS = ['WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0'];
     const FUERZAS = ['MA','MB','MC','MD','ME','MF'];
 
-    function fillSelect(sel, arr){
-      sel.innerHTML = '';
-      arr.forEach(v=>{
-        const o=document.createElement('option');
-        o.value=v; o.textContent=v;
-        sel.appendChild(o);
-      });
+    const OPERACIONES = [
+      'UBICACIÓN LUGAR Y DIRECCIÓN','RETOMA DE INSTALACIONES','RESCATE DE REHENES','PATRULLAJE','CONTROL DE LA POBLACIÓN.',
+      'AISLAR EL ÁEREA','EMBOSCADA','GOLPE DE MANO','RECONOCIMIENTO','PERSECUCIÓN','DESTRUCCIÓN','INFILTRACIÓN','PLANEAMIENTO',
+      'EVACUACIÓN','EXFILTRACIÓN','ENVIAR REFUERZOS','NOS ATACAN','ALISTAMIENTO','MOV. HELITRANSPORTAD','MOV. FLUVIAL',
+      'MOV. POR VEHICULO TIE.','MOV. A PIE','MOV. ÁEREO','OP. AEROTRANSPORTADA','OP. DE INTELIGENCIA','OP. DE SEG.DIGNATARIOS',
+      'OP. DE SEGURIDAD','OP. DE PPI','OP. CONTRAINTELIGENCIA','OP. HELITRANSPORTADA','OP. PSICOLÓGICAS','SECUESTRO','ABASTECIMIENTO',
+      'EJERCICIO DE ENTRENAAMIENTO.','PLAN DE LLAMADAS','PRE ALERTA. ALERTA'
+    ];
+
+    const LUGARES = Array.from({length:48},(_,i)=>String(352+i)); // 352..399
+    const PERSONALIDADES = [
+      'HA','HB','HC','HD','HE','HF','HG','HH','HI','HJ','HK','HL','HM','HN','HO','HP','HQ','HR','HS','HT','HU','HV','HW','HX','HY','HZ',
+      'H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE'
+    ];
+    const UNIDADES = ['0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9'];
+    const ACCIONES_OP = ['KA','KB','KC','KD','KE','KF','KG','KH','KI','KJ','KK','KL','KN'];
+    const MATERIAL = [
+      ...Array.from({length:26},(_,i)=>'L'+String.fromCharCode(65+i)), // LA..LZ
+      'L1','L2','L3','L4','L5','L6','L7'
+    ];
+    const TRANSP = Array.from({length:14},(_,i)=>'Y'+(i+1)); // Y1..Y14
+    const OTROS = ['O1','O2','O3','O4','O5','O6','O7','O8','O9','OX','OY','ODE','ON','OT','OF','OG','OC','OPM','OE','OID','OS','OR','OH','OM','ODO','ODR'];
+    const TIPODOC = ['Z1A','Z2B','Z3C','Z4D','Z5E','Z6F','Z7G','Z8H','Z9I','Z10J','Z11K','Z12L','Z13M','Z14N','Z15O','Z16P'];
+
+    function fillSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.value=v;o.textContent=v; sel.appendChild(o); }); }
+
+    // --- Leaflet / mapa y agentes ---
+    let map, agentsLayer;
+    function initMap(){
+      if(map) return;
+      map = L.map('map').setView([-16.5,-68.15], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+      agentsLayer = L.layerGroup().addTo(map);
+      refreshAgents();
+      setInterval(refreshAgents, 15000);
     }
 
+    async function refreshAgents(){
+      if(!getToken() || !map) return;
+      try{
+        const r = await fetch(`${API}/agents`,{ headers:{'Authorization':'Bearer '+getToken()} });
+        const data = await r.json();
+        if(!r.ok) throw new Error(data.message||'No se pudo cargar agentes');
+        agentsLayer.clearLayers();
+        (data.agents||[]).forEach(a=>{
+          if(typeof a.lat!=='number' || typeof a.lng!=='number') return;
+          const icon = L.divIcon({className:'',html:`<div style="width:14px;height:14px;border-radius:50%;border:2px solid #fff;background:${colorHEX(a.color)}"></div>`});
+          L.marker([a.lat,a.lng],{icon}).addTo(agentsLayer).bindPopup(`<b>${a.email}</b><br>${a.color}`);
+        });
+      }catch(e){ /* silencioso */ }
+    }
+
+    function colorHEX(code){
+      switch((code||'').toUpperCase()){
+        case 'ROJO': return '#ef4444';
+        case 'AMARILLO': return '#f59e0b';
+        case 'VERDE': return '#22c55e';
+        case 'AZUL': return '#3b82f6';
+        case 'NEGRO': return '#0f172a';
+        case 'BLANCO': return '#e5ecff';
+        default: return '#94a3b8';
+      }
+    }
+
+    // --- Auth ---
     async function doLogin(){
-      const email = document.getElementById('loginEmail').value.trim();
-      const password = document.getElementById('loginPass').value;
-      if(!email || !password){ return toast('Completa email y contraseña'); }
+      const email = $('loginEmail').value.trim();
+      const password = $('loginPass').value;
+      if(!email || !password) return toast('Completa email y contraseña');
       try{
         const r = await fetch(`${API}/login`,{
           method:'POST',
@@ -234,22 +397,38 @@
         });
         const data = await r.json();
         if(!r.ok) throw new Error(data.message||'Error de login');
-        setToken(data.token);
-        setUser(data.user||{});
+        setToken(data.token); setUser(data.user||{});
         toast('Sesión iniciada');
         routeByRole();
+        // Registrar ubicación del agente
+        if(navigator.geolocation){
+          navigator.geolocation.getCurrentPosition(async pos=>{
+            try{
+              await fetch(`${API}/position`,{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+                body: JSON.stringify({
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  color: $('repColor')?.value || 'VERDE'
+                })
+              });
+              refreshAgents();
+            }catch(_){}
+          });
+        }
       }catch(e){ toast(e.message); }
     }
 
     async function doRegister(){
-      const nombre = document.getElementById('regNombre').value.trim();
-      const email = document.getElementById('regEmail').value.trim();
-      const pass = document.getElementById('regPass').value;
-      const pass2 = document.getElementById('regPass2').value;
-      const grado = document.getElementById('regGrado').value;
-      const fuerza = document.getElementById('regFuerza').value;
-      if(!nombre || !email || !pass || !pass2){ return toast('Completa todos los campos'); }
-      if(pass!==pass2){ return toast('Las contraseñas no coinciden'); }
+      const nombre = $('regNombre').value.trim();
+      const email = $('regEmail').value.trim();
+      const pass = $('regPass').value;
+      const pass2 = $('regPass2').value;
+      const grado = $('regGrado').value;
+      const fuerza = $('regFuerza').value;
+      if(!nombre || !email || !pass || !pass2) return toast('Completa todos los campos');
+      if(pass!==pass2) return toast('Las contraseñas no coinciden');
       try{
         const r = await fetch(`${API}/register`,{
           method:'POST',
@@ -259,110 +438,143 @@
         const data = await r.json();
         if(!r.ok) throw new Error(data.message||'No se pudo registrar');
         toast('Cuenta creada, ahora inicia sesión.');
+        toggleLogin(true);
       }catch(e){ toast(e.message); }
     }
 
     function logout(){
-      setToken('');
-      setUser({});
-      location.reload();
+      setToken(''); setUser({}); location.reload();
     }
 
     function routeByRole(){
       const u=getUser();
-      const who = document.getElementById('whoami');
-      const sessionBox = document.getElementById('sessionBox');
-      who.textContent = u?.email ? `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'} ` : '';
-      if(u?.email){ sessionBox.classList.remove('hide'); } else { sessionBox.classList.add('hide'); }
-
+      const who=$('whoami');
+      if(u?.email){
+        $('sessionBox').classList.remove('hide');
+        who.textContent = `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'}`;
+      }else{
+        $('sessionBox').classList.add('hide');
+      }
       hide('auth'); hide('panelUsuario'); hide('panelAdmin');
-      if(u?.is_admin){ show('panelAdmin'); cargarAlertasAdmin(); cargarAccesos(); }
-      else if(u?.email){ show('panelUsuario'); cargarAlertasUsuario(); }
+      if(u?.is_admin){ show('panelAdmin'); cargarAlertasAdmin(); cargarAccesos(); initMap(); }
+      else if(u?.email){ show('panelUsuario'); cargarAlertasUsuario(); initMap(); }
       else { show('auth'); }
     }
 
+    // --- Reportes / Alertas (solo manuales) ---
     async function enviarReporte(){
-      const nivel = document.getElementById('repNivel').value;
-      const operacion = document.getElementById('repOperacion').value.trim();
-      const lugar = document.getElementById('repLugar').value.trim();
-      const detalle = document.getElementById('repDetalle').value.trim();
-      if(!operacion || !lugar || !detalle){ return toast('Completa operación, lugar y detalle'); }
+      const payload = {
+        nivel: $('repNivel').value,
+        operacion: $('repOperacion').value,
+        color: $('repColor').value,
+        pais_ciudad: $('repPaisCiudad').value.trim(),
+        lugar_code: $('repLugar').value,
+        personalidad: $('repPersonalidad').value,
+        unidad_policial: $('repUnidad').value,
+        accion_oponente: $('repAccionOponente').value,
+        material_equipo: $('repMaterial').value,
+        transporte: $('repTransporte').value,
+        otros: $('repOtros').value,
+        clasificacion_seg: $('repClasif').value,
+        tipo_documento: $('repTipoDoc').value,
+        detalle: $('repDetalle').value.trim(),
+        lat: Number($('repLat').value),
+        lng: Number($('repLng').value)
+      };
+      if(!payload.pais_ciudad || !payload.detalle) return toast('Completa País/Ciudad y Detalle');
       try{
         const r = await fetch(`${API}/reports`,{
           method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'Authorization':'Bearer '+getToken()
-          },
-          body: JSON.stringify({ nivel, operacion, lugar, detalle })
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify(payload)
         });
-        const data=await r.json();
+        const data = await r.json();
         if(!r.ok) throw new Error(data.message||'No se pudo enviar');
-        toast('Reporte enviado');
-        document.getElementById('repDetalle').value='';
+        toast('Alerta enviada');
         cargarAlertasUsuario();
       }catch(e){ toast(e.message); }
     }
 
-    function renderTable(tbody, rows){
-      tbody.innerHTML='';
+    function renderTableUser(rows){
+      const tbody = $('tablaAlertas').querySelector('tbody'); tbody.innerHTML='';
       rows.forEach(o=>{
         const tr=document.createElement('tr');
-        const td = (v)=>{ const c=document.createElement('td'); c.innerHTML=v; return c; };
-        tr.appendChild(td(new Date(o.fecha||o.created_at||Date.now()).toLocaleString()));
-        tr.appendChild(td(`<span class="chip">${o.nivel||'-'}</span>`));
-        tr.appendChild(td(o.operacion||'-'));
-        tr.appendChild(td(o.lugar||'-'));
-        tr.appendChild(td(o.detalle||'-'));
-        if(o.usuario){
-          tr.appendChild(td(`${o.usuario.email||'-'}`));
-        }
+        tr.innerHTML = `
+          <td>${fmtDate(o.fecha)}</td>
+          <td><span class="chip">${o.nivel||'-'}</span></td>
+          <td>${esc(o.operacion)}</td>
+          <td>${esc(o.pais_ciudad)}</td>
+          <td>${esc(o.lugar_code)}</td>
+          <td>${esc(o.clasificacion_seg)}</td>
+          <td>${num(o.lat)}</td>
+          <td>${num(o.lng)}</td>
+          <td>${esc(o.detalle)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderTableAdmin(rows){
+      const tbody = $('tablaAdminAlertas').querySelector('tbody'); tbody.innerHTML='';
+      rows.forEach(o=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `
+          <td>${fmtDate(o.fecha)}</td>
+          <td><span class="chip">${o.nivel||'-'}</span></td>
+          <td>${esc(o.operacion)}</td>
+          <td>${esc(o.pais_ciudad)}</td>
+          <td>${esc(o.lugar_code)}</td>
+          <td>${esc(o.clasificacion_seg)}</td>
+          <td>${num(o.lat)}</td>
+          <td>${num(o.lng)}</td>
+          <td>${esc(o.detalle)}</td>
+          <td>${esc(o?.usuario?.email||'-')}</td>
+        `;
         tbody.appendChild(tr);
       });
     }
 
     async function cargarAlertasUsuario(){
       try{
-        const r = await fetch(`${API}/admin/alerts`,{ // el backend devuelve todo; filtramos cliente si hace falta
-          headers:{'Authorization':'Bearer '+getToken()}
-        });
+        const r = await fetch(`${API}/admin/alerts`,{ headers:{'Authorization':'Bearer '+getToken()} });
         const data = await r.json();
-        if(!r.ok) throw new Error(data.message||'Error al cargar');
-        // para usuario mostramos todo igual (o se podría filtrar por email)
-        const body = document.querySelector('#tablaAlertas tbody');
-        renderTable(body, data.alertas||[]);
+        if(!r.ok) throw new Error(data.message||'Error al cargar alertas');
+        renderTableUser(data.alertas||[]);
       }catch(e){ toast(e.message); }
     }
 
     async function cargarAlertasAdmin(){
       try{
-        const r = await fetch(`${API}/admin/alerts`,{
-          headers:{'Authorization':'Bearer '+getToken()}
-        });
-        const data=await r.json();
-        if(!r.ok) throw new Error(data.message||'Error al cargar');
-        const body = document.querySelector('#tablaAdminAlertas tbody');
-        renderTable(body, data.alertas||[]);
+        const r = await fetch(`${API}/admin/alerts`,{ headers:{'Authorization':'Bearer '+getToken()} });
+        const data = await r.json();
+        if(!r.ok) throw new Error(data.message||'Error al cargar alertas');
+        renderTableAdmin(data.alertas||[]);
       }catch(e){ toast(e.message); }
     }
 
+    function exportarPDF(){
+      // Export simple: abre nueva ventana con la tabla y dispara print()
+      const table = $('tablaAdminAlertas').outerHTML;
+      const win = window.open('', '_blank');
+      win.document.write(`<html><head><title>Alertas CIE-297</title></head><body>${table}<script>window.onload=()=>{window.print();}</script></body></html>`);
+      win.document.close();
+    }
+
+    // --- Accesos (bloquear/eliminar) ---
     async function cargarAccesos(){
       try{
-        const r = await fetch(`${API}/admin/access`,{
-          headers:{'Authorization':'Bearer '+getToken()}
-        });
-        const data=await r.json();
+        const r = await fetch(`${API}/admin/access`,{ headers:{'Authorization':'Bearer '+getToken()} });
+        const data = await r.json();
         if(!r.ok) throw new Error(data.message||'Error al cargar accesos');
-        const body = document.querySelector('#tablaAccesos tbody');
-        body.innerHTML='';
+        const body = $('tablaAccesos').querySelector('tbody'); body.innerHTML='';
         (data.accesos||[]).forEach(a=>{
           const tr=document.createElement('tr');
           tr.innerHTML = `
-            <td>${new Date(a.fecha||Date.now()).toLocaleString()}</td>
-            <td>${a.email||'-'}</td>
-            <td>${a.nombre||'-'}</td>
-            <td>${a.ip||'-'}</td>
-            <td><span class="chip">${a.estado||'OK'}</span></td>
+            <td>${fmtDate(a.fecha)}</td>
+            <td>${esc(a.email)}</td>
+            <td>${esc(a.nombre)}</td>
+            <td>${esc(a.ip)}</td>
+            <td><span class="chip">${esc(a.estado||'OK')}</span></td>
             <td class="right">
               <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
               <button class="btn btn-danger" style="margin-left:8px" onclick="eliminarAccesos('${a.email||''}')">Eliminar</button>
@@ -378,13 +590,9 @@
       try{
         const r = await fetch(`${API}/admin/access/block`,{
           method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'Authorization':'Bearer '+getToken()
-          },
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
           body: JSON.stringify({ email })
         });
-        if(r.status===404){ toast('El backend aún no implementa /admin/access/block. (No es error)'); return; }
         const data=await r.json();
         if(!r.ok) throw new Error(data.message||'No se pudo bloquear');
         toast('Acceso bloqueado'); cargarAccesos();
@@ -396,34 +604,40 @@
       try{
         const r = await fetch(`${API}/admin/access`,{
           method:'DELETE',
-          headers:{
-            'Content-Type':'application/json',
-            'Authorization':'Bearer '+getToken()
-          },
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
           body: JSON.stringify({ email })
         });
-        if(r.status===404){ toast('El backend aún no implementa DELETE /admin/access. (No es error)'); return; }
         const data=await r.json();
         if(!r.ok) throw new Error(data.message||'No se pudo eliminar');
         toast('Accesos eliminados'); cargarAccesos();
       }catch(e){ toast(e.message); }
     }
 
-    // Init
-    (function init(){
-      // combos de registro
-      fillSelect(document.getElementById('regGrado'), GRADOS);
-      fillSelect(document.getElementById('regFuerza'), FUERZAS);
+    // --- Utils ---
+    function fmtDate(ts){ try{ return new Date(ts||Date.now()).toLocaleString(); }catch{return ''} }
+    function esc(s){ return (s==null?'':String(s)).replace(/[<>&]/g,c=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c])); }
+    function num(v){ return (typeof v==='number' && !Number.isNaN(v)) ? v.toFixed(6) : ''; }
 
-      // estado de sesión
+    // --- Init ---
+    (function init(){
+      // combos
+      fillSelect($('regGrado'), GRADOS);
+      fillSelect($('regFuerza'), FUERZAS);
+      fillSelect($('repOperacion'), OPERACIONES);
+      fillSelect($('repLugar'), LUGARES);
+      fillSelect($('repPersonalidad'), PERSONALIDADES);
+      fillSelect($('repUnidad'), UNIDADES);
+      fillSelect($('repAccionOponente'), ACCIONES_OP);
+      fillSelect($('repMaterial'), MATERIAL);
+      fillSelect($('repTransporte'), TRANSP);
+      fillSelect($('repOtros'), OTROS);
+      fillSelect($('repTipoDoc'), TIPODOC);
+
       const u=getUser();
-      if(!u?.email){
-        hide('panelUsuario'); hide('panelAdmin'); show('auth');
-        document.getElementById('sessionBox').classList.add('hide');
-      }else{
-        routeByRole();
-      }
+      if(u?.email){ routeByRole(); initMap(); }
+      else { show('auth'); } // landing con registro visible y login oculto
     })();
   </script>
 </body>
 </html>
+
