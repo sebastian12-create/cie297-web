@@ -43,8 +43,9 @@
     .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
     .topbar img{height:36px}
     .top-actions{display:flex;gap:8px}
-    .grid2{display:grid;grid-template-columns:2fr 1.2fr;gap:16px} /* ⬅ layout como imagen 2 */
+    .grid2{display:grid;grid-template-columns:2fr 1.2fr;gap:16px}
     #map{width:100%;height:360px;border-radius:14px;border:1px solid var(--line);margin-top:6px}
+    .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     @media (max-width:1024px){.grid2,.row,.row3{grid-template-columns:1fr}}
   </style>
 </head>
@@ -62,7 +63,7 @@
       <div class="top-actions">
         <button id="btnOperativo" class="btn hide" onclick="showOperativo()">Operativo</button>
         <button id="btnAdmin" class="btn hide" onclick="showAdmin()">Admin</button>
-        <div id="sessionBox" class="hide" style="display:flex;gap:8px;align-items:center">
+        <div id="sessionBox" class="hide inline">
           <span id="whoami" class="muted"></span>
           <button class="btn" onclick="logout()">Salir</button>
         </div>
@@ -115,14 +116,14 @@
         <input id="loginEmail" type="email" placeholder="usuario@cie297.mil"/>
         <label>Contraseña</label>
         <input id="loginPass" type="password" placeholder="••••••"/>
-        <div style="display:flex;gap:8px;margin-top:10px">
+        <div class="inline" style="margin-top:10px">
           <button class="btn btn-ok" onclick="doLogin()">Entrar</button>
           <button class="btn" onclick="toggleLogin(false)">Ocultar</button>
         </div>
       </div>
     </div>
 
-    <!-- PANEL OPERATIVO (como imagen 2) -->
+    <!-- PANEL OPERATIVO -->
     <div id="panelOperativo" class="hide">
       <div class="grid2">
         <!-- IZQ: Mapa + Misiones -->
@@ -176,7 +177,7 @@
 
             <div class="row3">
               <div>
-                <label>Unidad Policial </label>
+                <label>Unidad Policial (</label>
                 <select id="repUnidad"></select>
               </div>
               <div>
@@ -191,7 +192,7 @@
 
             <div class="row3">
               <div>
-                <label>Transporte </label>
+                <label>Transporte (</label>
                 <select id="repTransporte"></select>
               </div>
               <div>
@@ -229,6 +230,11 @@
               </div>
             </div>
 
+            <div class="inline" style="margin-top:6px">
+              <button class="btn" id="btnUbicacion" onclick="usarMiUbicacion()">Usar mi ubicación</button>
+              <span class="muted" style="font-size:12px">Se llenarán Lat/Lng al aceptar permisos.</span>
+            </div>
+
             <button class="btn btn-ok" style="margin-top:12px" onclick="enviarReporte()">Enviar alerta</button>
           </div>
         </div>
@@ -236,7 +242,7 @@
         <!-- DER: Botones + Feed alertas -->
         <div>
           <div class="card">
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="inline">
               <button class="btn btn-ok" onclick="cargarAlertasUsuario()">Ver todas</button>
               <button class="btn" onclick="exportarPDF()">Exportar PDF</button>
               <button class="btn" onclick="cargarAccesos()">Accesos</button>
@@ -264,11 +270,11 @@
       </div>
     </div>
 
-    <!-- PANEL ADMIN (acceso desde botón “Admin”) -->
+    <!-- PANEL ADMIN -->
     <div id="panelAdmin" class="hide">
       <div class="card">
         <h1>Panel Administrador</h1>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="inline">
           <button class="btn btn-ok" onclick="cargarAlertasAdmin()">Ver todas las alertas</button>
           <button class="btn" onclick="exportarPDF()">Exportar PDF</button>
           <button class="btn" onclick="cargarAccesos()">Ver accesos</button>
@@ -381,9 +387,10 @@
         const r=await fetch(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
         const data=await r.json(); if(!r.ok) throw new Error(data.message||'Error de login');
         setToken(data.token); setUser(data.user||{});
-        // UI: mostrar primero OPERATIVO (como pediste)
         routeAfterLogin();
-        // geo → registrar posición
+        // Log de acceso (server si existe, si no local)
+        logAccess();
+        // Geo de agente
         if(navigator.geolocation){
           navigator.geolocation.getCurrentPosition(async pos=>{
             try{
@@ -413,15 +420,35 @@
       $('auth').classList.add('hide'); $('auth').innerHTML='';
       $('sessionBox').classList.remove('hide');
       $('whoami').textContent = `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'}`;
-      // botones de barra
       $('btnOperativo').classList.remove('hide');
       if(u.is_admin) $('btnAdmin').classList.remove('hide');
-      // mostrar OPERATIVO primero (siempre)
-      showOperativo(); initMap();
-      cargarAlertasUsuario();
+      showOperativo(); initMap(); cargarAlertasUsuario();
     }
     function logout(){ setToken(''); setUser({}); location.reload(); }
     function toggleLogin(on){ $('loginCard').classList.toggle('hide', !on); }
+
+    // ===== Ubicación manual del reporte
+    function usarMiUbicacion(){
+      if(!navigator.geolocation){ toast('Geolocalización no disponible'); return; }
+      $('btnUbicacion').disabled = true;
+      navigator.geolocation.getCurrentPosition(
+        pos=>{
+          $('repLat').value = pos.coords.latitude.toFixed(6);
+          $('repLng').value = pos.coords.longitude.toFixed(6);
+          $('btnUbicacion').disabled = false;
+        },
+        err=>{ toast('No se pudo obtener ubicación'); $('btnUbicacion').disabled=false; },
+        {enableHighAccuracy:true,timeout:8000}
+      );
+    }
+
+    // ===== Persistencia local (respaldo si el backend aún no devuelve registros)
+    function getLocalAlerts(){ try{return JSON.parse(localStorage.getItem('localAlerts')||'[]')}catch{return[]} }
+    function setLocalAlerts(a){ localStorage.setItem('localAlerts', JSON.stringify(a||[])); }
+    function addLocalAlert(item){ const a=getLocalAlerts(); a.unshift(item); setLocalAlerts(a); }
+
+    function getLocalAccess(){ try{return JSON.parse(localStorage.getItem('localAccess')||'[]')}catch{return[]} }
+    function addLocalAccess(a){ const arr=getLocalAccess(); arr.unshift(a); localStorage.setItem('localAccess', JSON.stringify(arr)); }
 
     // ===== Reportes & Alertas
     async function enviarReporte(){
@@ -437,28 +464,57 @@
       if(!p.pais_ciudad||!p.detalle) return toast('Completa País/Ciudad y Detalle');
       try{
         const r=await fetch(`${API}/reports`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify(p)});
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'No se pudo enviar');
+        const data=await r.json();
+        if(r.ok){
+          // usar respuesta si trae la alerta
+          const alerta = data.alerta || {...p, fecha:Date.now()};
+          addLocalAlert(alerta);           // respaldo local para que se vea sí o sí
+          cargarAlertasUsuario();          // refresca feed + tabla
+          toast('Reporte enviado');
+        }else{
+          throw new Error(data.message||'No se pudo enviar');
+        }
+      }catch(e){
+        // último recurso: también guardamos local si falla
+        addLocalAlert({...p, fecha:Date.now()});
         cargarAlertasUsuario();
-      }catch(e){ toast(e.message); }
+        toast('Enviado en modo local (sin backend): '+e.message);
+      }
     }
 
     async function cargarAlertasUsuario(){
+      let server = [];
       try{
         const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'Error');
-        renderFeed(data.alertas||[]); renderTableUser(data.alertas||[]);
-      }catch(e){ toast(e.message); }
+        const data=await r.json(); if(r.ok) server = data.alertas||[];
+      }catch(_){}
+      // mezcla con locales (sin duplicar por timestamp + texto)
+      const local = getLocalAlerts();
+      const all = dedupeAlerts([...local, ...server]);
+      renderFeed(all); renderTableUser(all);
     }
+
     async function cargarAlertasAdmin(){
+      let server = [];
       try{
         const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'Error');
-        renderTableAdmin(data.alertas||[]);
-      }catch(e){ toast(e.message); }
+        const data=await r.json(); if(r.ok) server = data.alertas||[];
+      }catch(_){}
+      const all = dedupeAlerts([...getLocalAlerts(), ...server]);
+      renderTableAdmin(all);
+    }
+
+    function dedupeAlerts(list){
+      const seen=new Set();
+      return list.filter(a=>{
+        const key=[a.fecha||'',a.operacion||'',a.detalle||''].join('|');
+        if(seen.has(key)) return false; seen.add(key); return true;
+      });
     }
 
     function renderFeed(items){
       const box=$('feedAlertas'); box.innerHTML='';
+      if(!items.length){ box.innerHTML='<div class="muted">Sin alertas.</div>'; return; }
       items.forEach(o=>{
         const row=document.createElement('div');
         row.style.border='1px solid var(--line)';
@@ -492,7 +548,7 @@
     }
 
     function renderTableAdmin(rows){
-      const tb=$('tablaAdminAlertas').querySelector('tbody'); tb.innerHTML='';
+      const tb=$('tablaAdminAlertas').querySelector('tbody'); if(!tb) return; tb.innerHTML='';
       rows.forEach(o=>{
         const tr=document.createElement('tr');
         tr.innerHTML=`
@@ -505,6 +561,7 @@
     }
 
     function exportarPDF(){
+      // imprime la tabla actualmente renderizada (mezcla server + local)
       const html = document.getElementById('tablaAlertas').outerHTML;
       const doc = `<!doctype html><html><head><meta charset="utf-8"><title>Alertas</title>
       <style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;font-family:Arial,sans-serif;font-size:12px}</style>
@@ -512,40 +569,60 @@
       const win=window.open('','_blank'); win.document.open(); win.document.write(doc); win.document.close(); win.onload=()=>win.print();
     }
 
-    // Accesos (para Admin panel)
+    // ===== Accesos
+    async function logAccess(){
+      const u=getUser();
+      try{
+        const r=await fetch(`${API}/admin/access/log`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body:JSON.stringify({email:u.email,nombre:u.nombre||'',estado:'OK'})
+        });
+        if(!r.ok) throw new Error('no-server');
+      }catch(_){
+        addLocalAccess({fecha:Date.now(),email:u.email,nombre:u.nombre||'',ip:'-',estado:'OK'});
+      }
+    }
     async function cargarAccesos(){
+      let server=[];
       try{
         const r=await fetch(`${API}/admin/access`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'Error');
-        const tb=$('tablaAccesos').querySelector('tbody'); tb.innerHTML='';
-        (data.accesos||[]).forEach(a=>{
-          const tr=document.createElement('tr');
-          tr.innerHTML=`
-            <td>${fmtDate(a.fecha)}</td><td>${esc(a.email)}</td><td>${esc(a.nombre)}</td>
-            <td>${esc(a.ip)}</td><td><span class="chip">${esc(a.estado||'OK')}</span></td>
-            <td style="text-align:right">
-              <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
-              <button class="btn btn-danger" style="margin-left:6px" onclick="eliminarAccesos('${a.email||''}')">Eliminar</button>
-            </td>`;
-          tb.appendChild(tr);
-        });
-      }catch(e){ toast(e.message); }
+        const data=await r.json(); if(r.ok) server=data.accesos||[];
+      }catch(_){}
+      const all=[...getLocalAccess(),...server];
+      const tb=$('tablaAccesos').querySelector('tbody'); if(!tb) return; tb.innerHTML='';
+      if(!all.length){ tb.innerHTML=''; return; }
+      all.forEach(a=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${fmtDate(a.fecha)}</td><td>${esc(a.email)}</td><td>${esc(a.nombre)}</td>
+          <td>${esc(a.ip||'-')}</td><td><span class="chip">${esc(a.estado||'OK')}</span></td>
+          <td style="text-align:right">
+            <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
+            <button class="btn btn-danger" style="margin-left:6px" onclick="eliminarAccesos('${a.email||''}')">Eliminar</button>
+          </td>`;
+        tb.appendChild(tr);
+      });
     }
     async function bloquearAcceso(email){
       if(!email) return;
       try{
         const r=await fetch(`${API}/admin/access/block`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({email})});
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'No se pudo bloquear');
+        if(!r.ok) throw new Error('server');
         cargarAccesos();
-      }catch(e){ toast(e.message); }
+      }catch(_){ toast('Bloqueo local no soportado'); }
     }
     async function eliminarAccesos(email){
       if(!email) return;
       try{
         const r=await fetch(`${API}/admin/access`,{method:'DELETE',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({email})});
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'No se pudo eliminar');
+        if(!r.ok) throw new Error('server');
         cargarAccesos();
-      }catch(e){ toast(e.message); }
+      }catch(_){
+        // borra del respaldo local
+        const rest=getLocalAccess().filter(x=>x.email!==email); localStorage.setItem('localAccess',JSON.stringify(rest));
+        cargarAccesos();
+      }
     }
 
     // Utils
