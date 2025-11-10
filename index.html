@@ -5,10 +5,27 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CIE-297 | Monitoreo en Tiempo Real</title>
   <link rel="icon" href="assets/logo.png" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+    defer
+  ></script>
+
   <style>
-    :root{--bg:#0b1424;--card:#101b31;--soft:#12213b;--text:#e5ecff;--muted:#93a4c7;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--line:rgba(255,255,255,.08);--chip:#152238;}
+    :root{
+      --bg:#0b1424;--card:#101b31;--soft:#12213b;--text:#e5ecff;--muted:#93a4c7;
+      --ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--line:rgba(255,255,255,.08);
+      --chip:#152238;
+    }
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
     .wrap{max-width:1200px;margin:0 auto;padding:24px}
@@ -115,7 +132,7 @@
         <h1>Área Operativa</h1>
         <div id="map"></div>
         <div class="muted" style="font-size:12px;margin-top:6px">
-          Mapa con ubicaciones de agentes activos.
+          Mapa con ubicaciones de agentes activos (se registra tu ubicación al iniciar sesión).
         </div>
       </div>
 
@@ -279,7 +296,7 @@
     const API = '/api';
     const $ = (id)=>document.getElementById(id);
 
-    // sesión
+    // --- Helpers sesión ---
     function getToken(){ return localStorage.getItem('token') || ''; }
     function setToken(t){ localStorage.setItem('token', t||''); }
     function setUser(u){ localStorage.setItem('user', JSON.stringify(u||{})); }
@@ -289,7 +306,7 @@
     function toast(m){ alert(m); }
     function toggleLogin(showLogin){ $('loginCard').classList.toggle('hide', !showLogin); }
 
-    // catálogos
+    // --- Catálogos ---
     const GRADOS = ['WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0'];
     const FUERZAS = ['MA','MB','MC','MD','ME','MF'];
     const OPERACIONES = [
@@ -300,17 +317,21 @@
       'OP. DE SEGURIDAD','OP. DE PPI','OP. CONTRAINTELIGENCIA','OP. HELITRANSPORTADA','OP. PSICOLÓGICAS','SECUESTRO','ABASTECIMIENTO',
       'EJERCICIO DE ENTRENAAMIENTO.','PLAN DE LLAMADAS','PRE ALERTA. ALERTA'
     ];
-    const LUGARES = Array.from({length:48},(_,i)=>String(352+i));
-    const PERSONALIDADES = ['HA','HB','HC','HD','HE','HF','HG','HH','HI','HJ','HK','HL','HM','HN','HO','HP','HQ','HR','HS','HT','HU','HV','HW','HX','HY','HZ','H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE'];
+    const LUGARES = Array.from({length:48},(_,i)=>String(352+i)); // 352..399
+    const PERSONALIDADES = [
+      'HA','HB','HC','HD','HE','HF','HG','HH','HI','HJ','HK','HL','HM','HN','HO','HP','HQ','HR','HS','HT','HU','HV','HW','HX','HY','HZ',
+      'H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE'
+    ];
     const UNIDADES = ['0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9'];
     const ACCIONES_OP = ['KA','KB','KC','KD','KE','KF','KG','KH','KI','KJ','KK','KL','KN'];
     const MATERIAL = [...Array.from({length:26},(_,i)=>'L'+String.fromCharCode(65+i)),'L1','L2','L3','L4','L5','L6','L7'];
     const TRANSP = Array.from({length:14},(_,i)=>'Y'+(i+1));
     const OTROS = ['O1','O2','O3','O4','O5','O6','O7','O8','O9','OX','OY','ODE','ON','OT','OF','OG','OC','OPM','OE','OID','OS','OR','OH','OM','ODO','ODR'];
     const TIPODOC = ['Z1A','Z2B','Z3C','Z4D','Z5E','Z6F','Z7G','Z8H','Z9I','Z10J','Z11K','Z12L','Z13M','Z14N','Z15O','Z16P'];
+
     function fillSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.value=v;o.textContent=v; sel.appendChild(o); }); }
 
-    // mapa/agentes
+    // --- Mapa y agentes ---
     let map, agentsLayer;
     function initMap(){
       if(map) return;
@@ -332,35 +353,55 @@
           const icon = L.divIcon({className:'',html:`<div style="width:14px;height:14px;border-radius:50%;border:2px solid #fff;background:${colorHEX(a.color)}"></div>`});
           L.marker([a.lat,a.lng],{icon}).addTo(agentsLayer).bindPopup(`<b>${a.email}</b><br>${a.color}`);
         });
-      }catch(_){}
+      }catch(_){ }
     }
     function colorHEX(code){
       switch((code||'').toUpperCase()){
-        case 'ROJO': return '#ef4444'; case 'AMARILLO': return '#f59e0b';
-        case 'VERDE': return '#22c55e'; case 'AZUL': return '#3b82f6';
-        case 'NEGRO': return '#0f172a'; case 'BLANCO': return '#e5ecff';
+        case 'ROJO': return '#ef4444';
+        case 'AMARILLO': return '#f59e0b';
+        case 'VERDE': return '#22c55e';
+        case 'AZUL': return '#3b82f6';
+        case 'NEGRO': return '#0f172a';
+        case 'BLANCO': return '#e5ecff';
         default: return '#94a3b8';
       }
     }
 
-    // auth
+    // --- Auth (login primero muestra panel ARRIBA) ---
     async function doLogin(){
       const email = $('loginEmail').value.trim();
       const password = $('loginPass').value;
       if(!email || !password) return toast('Completa email y contraseña');
+
       try{
-        const r = await fetch(`${API}/login`,{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) });
+        const r = await fetch(`${API}/login`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ email, password })
+        });
         const data = await r.json();
         if(!r.ok) throw new Error(data.message||'Error de login');
-        setToken(data.token); setUser(data.user||{});
+
+        setToken(data.token);
+        setUser(data.user||{});
+
+        // Cerrar landing completamente, levantar panel y subir al tope
+        toggleLogin(false);
         routeByRole();
+        window.scrollTo({ top: 0, behavior: 'auto' });
+
+        // Registrar ubicación del agente
         if(navigator.geolocation){
           navigator.geolocation.getCurrentPosition(async pos=>{
             try{
               await fetch(`${API}/position`,{
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
-                body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude, color: $('repColor')?.value || 'VERDE' })
+                body: JSON.stringify({
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  color: $('repColor')?.value || 'VERDE'
+                })
               });
               refreshAgents();
             }catch(_){}
@@ -368,6 +409,7 @@
         }
       }catch(e){ toast(e.message); }
     }
+
     async function doRegister(){
       const nombre = $('regNombre').value.trim();
       const email = $('regEmail').value.trim();
@@ -378,26 +420,48 @@
       if(!nombre || !email || !pass || !pass2) return toast('Completa todos los campos');
       if(pass!==pass2) return toast('Las contraseñas no coinciden');
       try{
-        const r = await fetch(`${API}/register`,{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nombre, email, password: pass, grado, fuerza }) });
+        const r = await fetch(`${API}/register`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ nombre, email, password: pass, grado, fuerza })
+        });
         const data = await r.json();
         if(!r.ok) throw new Error(data.message||'No se pudo registrar');
+        toast('Cuenta creada, ahora inicia sesión.');
         toggleLogin(true);
+        window.scrollTo({ top: 0, behavior: 'auto' });
       }catch(e){ toast(e.message); }
     }
+
     function logout(){ setToken(''); setUser({}); location.reload(); }
 
     function routeByRole(){
       const u=getUser();
       const who=$('whoami');
-      if(u?.email){ $('sessionBox').classList.remove('hide'); who.textContent = `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'}`; }
-      else { $('sessionBox').classList.add('hide'); }
-      hide('auth'); hide('panelUsuario'); hide('panelAdmin');
-      if(u?.is_admin){ show('panelAdmin'); cargarAlertasAdmin(); cargarAccesos(); initMap(); }
-      else if(u?.email){ show('panelUsuario'); cargarAlertasUsuario(); initMap(); }
-      else { show('auth'); }
+
+      // Ocultar y limpiar landing para que el panel quede ARRIBA
+      const authNode = $('auth');
+      if (authNode){ authNode.classList.add('hide'); authNode.innerHTML=''; }
+
+      // Reset vistas
+      hide('panelUsuario'); hide('panelAdmin');
+
+      if(u?.email){
+        $('sessionBox').classList.remove('hide');
+        who.textContent = `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'}`;
+        if(u?.is_admin){
+          show('panelAdmin'); cargarAlertasAdmin(); cargarAccesos(); initMap();
+        }else{
+          show('panelUsuario'); cargarAlertasUsuario(); initMap();
+        }
+      }else{
+        $('sessionBox').classList.add('hide');
+        if (authNode){ authNode.classList.remove('hide'); } // solo registro visible
+      }
+      window.scrollTo({ top: 0, behavior: 'auto' });
     }
 
-    // reportes / alertas
+    // --- Reportes / Alertas ---
     async function enviarReporte(){
       const payload = {
         nivel: $('repNivel').value,
@@ -419,35 +483,57 @@
       };
       if(!payload.pais_ciudad || !payload.detalle) return toast('Completa País/Ciudad y Detalle');
       try{
-        const r = await fetch(`${API}/reports`,{ method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body: JSON.stringify(payload) });
+        const r = await fetch(`${API}/reports`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify(payload)
+        });
         const data = await r.json();
         if(!r.ok) throw new Error(data.message||'No se pudo enviar');
+        toast('Alerta enviada');
         cargarAlertasUsuario();
       }catch(e){ toast(e.message); }
     }
+
     function renderTableUser(rows){
       const tbody = $('tablaAlertas').querySelector('tbody'); tbody.innerHTML='';
       rows.forEach(o=>{
         const tr=document.createElement('tr');
         tr.innerHTML = `
-          <td>${fmtDate(o.fecha)}</td><td><span class="chip">${o.nivel||'-'}</span></td>
-          <td>${esc(o.operacion)}</td><td>${esc(o.pais_ciudad)}</td><td>${esc(o.lugar_code)}</td>
-          <td>${esc(o.clasificacion_seg)}</td><td>${num(o.lat)}</td><td>${num(o.lng)}</td><td>${esc(o.detalle)}</td>`;
+          <td>${fmtDate(o.fecha)}</td>
+          <td><span class="chip">${o.nivel||'-'}</span></td>
+          <td>${esc(o.operacion)}</td>
+          <td>${esc(o.pais_ciudad)}</td>
+          <td>${esc(o.lugar_code)}</td>
+          <td>${esc(o.clasificacion_seg)}</td>
+          <td>${num(o.lat)}</td>
+          <td>${num(o.lng)}</td>
+          <td>${esc(o.detalle)}</td>
+        `;
         tbody.appendChild(tr);
       });
     }
+
     function renderTableAdmin(rows){
       const tbody = $('tablaAdminAlertas').querySelector('tbody'); tbody.innerHTML='';
       rows.forEach(o=>{
         const tr=document.createElement('tr');
         tr.innerHTML = `
-          <td>${fmtDate(o.fecha)}</td><td><span class="chip">${o.nivel||'-'}</span></td>
-          <td>${esc(o.operacion)}</td><td>${esc(o.pais_ciudad)}</td><td>${esc(o.lugar_code)}</td>
-          <td>${esc(o.clasificacion_seg)}</td><td>${num(o.lat)}</td><td>${num(o.lng)}</td><td>${esc(o.detalle)}</td>
-          <td>${esc(o?.usuario?.email||'-')}</td>`;
+          <td>${fmtDate(o.fecha)}</td>
+          <td><span class="chip">${o.nivel||'-'}</span></td>
+          <td>${esc(o.operacion)}</td>
+          <td>${esc(o.pais_ciudad)}</td>
+          <td>${esc(o.lugar_code)}</td>
+          <td>${esc(o.clasificacion_seg)}</td>
+          <td>${num(o.lat)}</td>
+          <td>${num(o.lng)}</td>
+          <td>${esc(o.detalle)}</td>
+          <td>${esc(o?.usuario?.email||'-')}</td>
+        `;
         tbody.appendChild(tr);
       });
     }
+
     async function cargarAlertasUsuario(){
       try{
         const r = await fetch(`${API}/admin/alerts`,{ headers:{'Authorization':'Bearer '+getToken()} });
@@ -456,6 +542,7 @@
         renderTableUser(data.alertas||[]);
       }catch(e){ toast(e.message); }
     }
+
     async function cargarAlertasAdmin(){
       try{
         const r = await fetch(`${API}/admin/alerts`,{ headers:{'Authorization':'Bearer '+getToken()} });
@@ -464,15 +551,19 @@
         renderTableAdmin(data.alertas||[]);
       }catch(e){ toast(e.message); }
     }
+
     function exportarPDF(){
       const tableHTML = document.getElementById('tablaAdminAlertas').outerHTML;
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Alertas CIE-297</title>
-      <style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;font-family:Arial,sans-serif;font-size:12px}</style>
-      </head><body>${tableHTML}</body></html>`;
-      const win = window.open('', '_blank'); win.document.open(); win.document.write(html); win.document.close(); win.onload=()=>win.print();
+      const html = `
+        <!doctype html><html><head><meta charset="utf-8"><title>Alertas CIE-297</title>
+        <style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;font-family:Arial,sans-serif;font-size:12px}</style>
+        </head><body>${tableHTML}</body></html>`;
+      const win = window.open('', '_blank');
+      win.document.open(); win.document.write(html); win.document.close();
+      win.onload = () => win.print();
     }
 
-    // accesos
+    // --- Accesos ---
     async function cargarAccesos(){
       try{
         const r = await fetch(`${API}/admin/access`,{ headers:{'Authorization':'Bearer '+getToken()} });
@@ -482,12 +573,16 @@
         (data.accesos||[]).forEach(a=>{
           const tr=document.createElement('tr');
           tr.innerHTML = `
-            <td>${fmtDate(a.fecha)}</td><td>${esc(a.email)}</td><td>${esc(a.nombre)}</td>
-            <td>${esc(a.ip)}</td><td><span class="chip">${esc(a.estado||'OK')}</span></td>
+            <td>${fmtDate(a.fecha)}</td>
+            <td>${esc(a.email)}</td>
+            <td>${esc(a.nombre)}</td>
+            <td>${esc(a.ip)}</td>
+            <td><span class="chip">${esc(a.estado||'OK')}</span></td>
             <td class="right">
               <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
               <button class="btn btn-danger" style="margin-left:8px" onclick="eliminarAccesos('${a.email||''}')">Eliminar</button>
-            </td>`;
+            </td>
+          `;
           body.appendChild(tr);
         });
       }catch(e){ toast(e.message); }
@@ -495,24 +590,36 @@
     async function bloquearAcceso(email){
       if(!email) return;
       try{
-        const r = await fetch(`${API}/admin/access/block`,{ method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body: JSON.stringify({ email }) });
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'No se pudo bloquear'); cargarAccesos();
+        const r = await fetch(`${API}/admin/access/block`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify({ email })
+        });
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.message||'No se pudo bloquear');
+        toast('Acceso bloqueado'); cargarAccesos();
       }catch(e){ toast(e.message); }
     }
     async function eliminarAccesos(email){
       if(!email) return;
       try{
-        const r = await fetch(`${API}/admin/access`,{ method:'DELETE', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body: JSON.stringify({ email }) });
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'No se pudo eliminar'); cargarAccesos();
+        const r = await fetch(`${API}/admin/access`,{
+          method:'DELETE',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify({ email })
+        });
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.message||'No se pudo eliminar');
+        toast('Accesos eliminados'); cargarAccesos();
       }catch(e){ toast(e.message); }
     }
 
-    // utils
+    // --- Utils ---
     function fmtDate(ts){ try{ return new Date(ts||Date.now()).toLocaleString(); }catch{return ''} }
     function esc(s){ return (s==null?'':String(s)).replace(/[<>&]/g,c=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c])); }
     function num(v){ return (typeof v==='number' && !Number.isNaN(v)) ? v.toFixed(6) : ''; }
 
-    // init
+    // --- Init ---
     (function init(){
       fillSelect($('regGrado'), GRADOS);
       fillSelect($('regFuerza'), FUERZAS);
@@ -527,7 +634,7 @@
       fillSelect($('repTipoDoc'), TIPODOC);
 
       const u=getUser();
-      if(u?.email){ routeByRole(); initMap(); } else { show('auth'); }
+      if(u?.email){ routeByRole(); initMap(); } else { /* landing */ }
     })();
   </script>
 </body>
