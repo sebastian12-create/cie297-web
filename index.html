@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="es">
 <head>
@@ -70,7 +71,7 @@
       </div>
     </div>
 
-    <!-- LANDING: solo Registro + botón mostrar login -->
+    <!-- LANDING: Registro + botón login -->
     <div id="auth" class="card">
       <h1>Crear cuenta</h1>
       <div class="row">
@@ -345,7 +346,7 @@
     function fillSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }); }
 
     // ===== Mapa & Agentes
-    let map, agentsLayer, _myMarker; /* <-- agregado: marcador propio */
+    let map, agentsLayer, selfMarker;
     function initMap(){
       if(map) return;
       map = L.map('map').setView([-16.5,-68.15], 5);
@@ -374,18 +375,19 @@
       }
     }
 
-    // (agregado) pinta/actualiza TU marcador en el mapa
-    function updateMyMarker(lat, lng){
-      if(!map) return;
-      const color = $('repColor')?.value || 'VERDE';
-      const icon = L.divIcon({className:'',html:`<div style="width:16px;height:16px;border-radius:50%;border:2px solid #fff;background:${colorHEX(color)};box-shadow:0 0 0 3px rgba(255,255,255,.2)"></div>`});
-      if(_myMarker){ _myMarker.setLatLng([lat,lng]); _myMarker.setIcon(icon); }
-      else{ _myMarker = L.marker([lat,lng],{icon}).addTo(map).bindPopup('<b>Mi ubicación</b>'); }
-    }
-
     // ===== Navegación Operativo/Admin
     function showOperativo(){ hide('panelAdmin'); show('panelOperativo'); window.scrollTo({top:0,behavior:'auto'}); }
     function showAdmin(){ hide('panelOperativo'); show('panelAdmin'); window.scrollTo({top:0,behavior:'auto'}); }
+
+    // ===== Helper POST con auth y JSON
+    async function postJSON(url, body, useAuth = true){
+      const headers = {'Content-Type':'application/json'};
+      if(useAuth) headers['Authorization'] = 'Bearer ' + getToken();
+      const r = await fetch(url, {method:'POST', headers, body: JSON.stringify(body)});
+      let data = {};
+      try{ data = await r.json(); }catch(_){}
+      return { ok: r.ok, status: r.status, data };
+    }
 
     // ===== Auth
     async function doLogin(){
@@ -399,12 +401,13 @@
         routeAfterLogin();
         // Log de acceso (server si existe, si no local)
         logAccess();
-        // Geo de agente
+        // Geo automática de agente (para que todos lo vean)
         if(navigator.geolocation){
           navigator.geolocation.getCurrentPosition(async pos=>{
             try{
-              await fetch(`${API}/position`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
-                body:JSON.stringify({lat:pos.coords.latitude,lng:pos.coords.longitude,color:$('repColor')?.value||'VERDE'})});
+              await postJSON(`${API}/position`,{
+                lat:pos.coords.latitude,lng:pos.coords.longitude,color:$('repColor')?.value||'VERDE'
+              }, true);
               refreshAgents();
             }catch(_){}
           });
@@ -436,26 +439,25 @@
     function logout(){ setToken(''); setUser({}); location.reload(); }
     function toggleLogin(on){ $('loginCard').classList.toggle('hide', !on); }
 
-    // ===== Ubicación manual del reporte
-    async function usarMiUbicacion(){
+    // ===== Ubicación manual del reporte (con marcador y registro global)
+    function usarMiUbicacion(){
       if(!navigator.geolocation){ toast('Geolocalización no disponible'); return; }
       $('btnUbicacion').disabled = true;
       navigator.geolocation.getCurrentPosition(
         async pos=>{
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
+          const lat = +pos.coords.latitude.toFixed(6);
+          const lng = +pos.coords.longitude.toFixed(6);
           $('repLat').value = lat;
           $('repLng').value = lng;
-          // (agregado) centrar mapa + dibujar mi marcador
-          if(map){ map.setView([lat,lng], Math.max(map.getZoom(), 14)); }
-          updateMyMarker(lat, lng);
-          // (agregado) enviar al backend para que aparezca para todos
+          // marcador propio inmediato
+          if(map){
+            if(selfMarker) map.removeLayer(selfMarker);
+            selfMarker = L.marker([lat,lng]).addTo(map).bindPopup('Mi ubicación').openPopup();
+            map.setView([lat,lng], 14);
+          }
+          // enviar al backend para que TODOS lo vean en /agents
           try{
-            await fetch(`${API}/position`,{
-              method:'POST',
-              headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
-              body:JSON.stringify({lat,lng,color:$('repColor')?.value||'VERDE'})
-            });
+            await postJSON(`${API}/position`, {lat, lng, color: ($('repColor')?.value||'VERDE') }, true);
             refreshAgents();
           }catch(_){}
           $('btnUbicacion').disabled = false;
@@ -465,7 +467,7 @@
       );
     }
 
-    // ===== Persistencia local (respaldo si el backend aún no devuelve registros)
+    // ===== Persistencia local (respaldo si el backend no devuelve registros)
     function getLocalAlerts(){ try{return JSON.parse(localStorage.getItem('localAlerts')||'[]')}catch{return[]} }
     function setLocalAlerts(a){ localStorage.setItem('localAlerts', JSON.stringify(a||[])); }
     function addLocalAlert(item){ const a=getLocalAlerts(); a.unshift(item); setLocalAlerts(a); }
@@ -475,29 +477,31 @@
 
     // ===== Reportes & Alertas
     async function enviarReporte(){
-      const p={
+      const u = getUser();
+      const p = {
         nivel:$('repNivel').value, operacion:$('repOperacion').value, color:$('repColor').value,
         pais_ciudad:$('repPaisCiudad').value.trim(), lugar_code:$('repLugar').value,
         personalidad:$('repPersonalidad').value, unidad_policial:$('repUnidad').value,
         accion_oponente:$('repAccionOponente').value, material_equipo:$('repMaterial').value,
         transporte:$('repTransporte').value, otros:$('repOtros').value,
         clasificacion_seg:$('repClasif').value, tipo_documento:$('repTipoDoc').value,
-        detalle:$('repDetalle').value.trim(), lat:Number($('repLat').value), lng:Number($('repLng').value)
+        detalle:$('repDetalle').value.trim(), lat:Number($('repLat').value), lng:Number($('repLng').value),
+        usuario:{ email: u.email || '-' }
       };
       if(!p.pais_ciudad||!p.detalle) return toast('Completa País/Ciudad y Detalle');
       try{
-        const r=await fetch(`${API}/reports`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify(p)});
-        const data=await r.json();
+        let r = await postJSON(`${API}/reports`, p, true);
+        if(!r.ok) r = await postJSON(`${API}/reports/create`, p, true);
         if(r.ok){
-          const alerta = data.alerta || {...p, fecha:Date.now()};
+          const alerta = r.data.alerta || {...p, fecha: Date.now()};
           addLocalAlert(alerta);
           cargarAlertasUsuario();
           toast('Reporte enviado');
         }else{
-          throw new Error(data.message||'No se pudo enviar');
+          throw new Error(r.data?.message||'No se pudo enviar');
         }
       }catch(e){
-        addLocalAlert({...p, fecha:Date.now()});
+        addLocalAlert({...p, fecha: Date.now()});
         cargarAlertasUsuario();
         toast('Enviado en modo local (sin backend): '+e.message);
       }
@@ -517,11 +521,21 @@
     async function cargarAlertasAdmin(){
       let server = [];
       try{
-        const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json(); if(r.ok) server = data.alertas||[];
+        let r = await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
+        if(r.ok){
+          const data = await r.json(); server = data.alertas||[];
+        }else{
+          let r2 = await fetch(`${API}/reports/all`,{headers:{'Authorization':'Bearer '+getToken()}});
+          if(r2.ok){
+            const data2 = await r2.json(); server = data2.alertas || data2 || [];
+          }
+        }
       }catch(_){}
-      const all = dedupeAlerts([...getLocalAlerts(), ...server]);
-      renderTableAdmin(all);
+      const merged = dedupeAlerts([
+        ...getLocalAlerts().map(a=>({ ...a, usuario: a.usuario || {email: (getUser().email||'-')} })),
+        ...server
+      ]);
+      renderTableAdmin(merged);
     }
 
     function dedupeAlerts(list){
@@ -590,23 +604,28 @@
 
     // ===== Accesos
     async function logAccess(){
-      const u=getUser();
+      const u = getUser();
+      const payload = {email: u.email, nombre: u.nombre || '', estado:'OK', fecha: Date.now()};
       try{
-        const r=await fetch(`${API}/admin/access/log`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
-          body:JSON.stringify({email:u.email,nombre:u.nombre||'',estado:'OK'})
-        });
+        let r = await postJSON(`${API}/admin/access/log`, payload, true);
+        if(!r.ok) r = await postJSON(`${API}/access/log`, payload, true);
         if(!r.ok) throw new Error('no-server');
       }catch(_){
-        addLocalAccess({fecha:Date.now(),email:u.email,nombre:u.nombre||'',ip:'-',estado:'OK'});
+        addLocalAccess(payload);
       }
     }
     async function cargarAccesos(){
       let server=[];
       try{
-        const r=await fetch(`${API}/admin/access`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json(); if(r.ok) server=data.accesos||[];
+        let r=await fetch(`${API}/admin/access`,{headers:{'Authorization':'Bearer '+getToken()}});
+        if(r.ok){
+          const data=await r.json(); server=data.accesos||[];
+        }else{
+          let r2=await fetch(`${API}/access`,{headers:{'Authorization':'Bearer '+getToken()}});
+          if(r2.ok){
+            const data2=await r2.json(); server=data2.accesos||data2||[];
+          }
+        }
       }catch(_){}
       const all=[...getLocalAccess(),...server];
       const tb=$('tablaAccesos').querySelector('tbody'); if(!tb) return; tb.innerHTML='';
@@ -614,7 +633,7 @@
       all.forEach(a=>{
         const tr=document.createElement('tr');
         tr.innerHTML=`
-          <td>${fmtDate(a.fecha)}</td><td>${esc(a.email)}</td><td>${esc(a.nombre)}</td>
+          <td>${fmtDate(a.fecha)}</td><td>${esc(a.email)}</td><td>${esc(a.nombre||'')}</td>
           <td>${esc(a.ip||'-')}</td><td><span class="chip">${esc(a.estado||'OK')}</span></td>
           <td style="text-align:right">
             <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
