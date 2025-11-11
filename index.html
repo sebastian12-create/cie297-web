@@ -6,6 +6,12 @@
   <title>CIE-297 | Monitoreo en Tiempo Real</title>
   <link rel="icon" href="assets/logo.png" />
 
+  <!-- PWA: manifest + color + iOS icon -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b1424">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+
   <!-- Leaflet -->
   <link rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -23,7 +29,7 @@
       --chip:#152238;
     }
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Noto Sans,sans-serif;background:var(--bg);color:#e5ecff}
     .wrap{max-width:1250px;margin:0 auto;padding:20px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
     h1{font-size:22px;margin:0 0 10px}
@@ -306,6 +312,15 @@
 
     <p class="muted" style="text-align:center;margin-top:16px">© CIE-297</p>
   </div>
+
+  <!-- PWA: registro del Service Worker (no toca tu lógica) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(()=>{});
+      });
+    }
+  </script>
 
   <script>
     const API = '/api';
@@ -695,9 +710,10 @@
           setInterval(cargarAccesos, 10000);
         }
       }
-      // resiliencia: si el usuario cambia de pestaña, intentamos enviar pendientes
+      // resiliencia: si cambias de pestaña, intenta enviar pendientes
       document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') tryFlushPending(); });
     })();
   </script>
 </body>
 </html>
+
