@@ -398,15 +398,18 @@
     function fillSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }); }
 
     // ===== Mapa & Agentes
-    let map, agentsLayer, myMarker=null;
-    function initMap(){
-      if(map) return;
+     let map, agentsLayer, alertsLayer, myMarker=null;
+
+     function initMap(){
+     if(map) return;
       map = L.map('map').setView([-16.5,-68.15], 5);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
-      agentsLayer = L.layerGroup().addTo(map);
-      refreshAgents();
+     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+     agentsLayer = L.layerGroup().addTo(map);
+     alertsLayer = L.layerGroup().addTo(map); // <- NUEVA CAPA PARA PINGS DE ALERTAS
+     refreshAgents();
       setInterval(refreshAgents, 15000);
     }
+
     async function refreshAgents(){
       if(!getToken()||!map) return;
       try{
@@ -584,6 +587,7 @@
         fecha: Date.now()
       };
       if(!p.pais_ciudad||!p.detalle) return toast('Completa País/Ciudad y Detalle');
+	  await tryFlushPending(); // <-- fuerza sincronización inmediata
 
       const ok=await sendJSON(`${API}/reports`, p, true);
       if(!ok){ queue(LS_KEYS.pAlerts,p); }
@@ -604,6 +608,20 @@
       const local = jget(LS_KEYS.localAlerts,[]);
       const all = dedupeAlerts([...local, ...server]);
       renderFeed(all); renderTableUser(all);
+	  // --- DIBUJAR ALERTAS EN EL MAPA (ADMIN) ---
+      if (alertsLayer) {
+      alertsLayer.clearLayers();
+      all.forEach(a => {
+     if (typeof a.lat === 'number' && typeof a.lng === 'number') {
+      const icon = L.divIcon({
+        className:'',
+        html:'<div style="width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'
+      });
+      L.marker([a.lat, a.lng], {icon})
+        .addTo(alertsLayer)
+        .bindPopup(`<b>${esc(a.operacion||'-')}</b><br>${esc(a.detalle||'')}`);
+    }
+    });
     }
 
     async function cargarAlertasAdmin(){
