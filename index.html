@@ -234,10 +234,7 @@
                 <input id="repLng" type="number" step="any" placeholder="-68.15"/>
               </div>
             </div>
-			<div>
-               <label>Nombre del agente</label>
-               <input id="repAgente" placeholder="Ej: Agente Bravo-12"/>
-            </div>
+			
 
             <div class="inline" style="margin-top:6px">
               <button class="btn" id="btnUbicacion" onclick="usarMiUbicacion()">Usar mi ubicación</button>
@@ -632,8 +629,6 @@
         lat:Number($('repLat').value),
         lng:Number($('repLng').value),
         fecha: Date.now()
-	    agente: $('repAgente').value.trim()
-
       };
       if(!p.pais_ciudad||!p.detalle) return toast('Completa País/Ciudad y Detalle');
 
