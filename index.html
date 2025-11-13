@@ -202,7 +202,7 @@
                 <select id="repTransporte"></select>
               </div>
               <div>
-                <label>Otros</label>
+               <label>Función y/o especialidad</label>
                 <select id="repOtros"></select>
               </div>
               <div>
@@ -324,7 +324,7 @@
   </script>
 
   <script>
-    const API = '/api';
+    const API = 'https://cie297-web-taupe.vercel.app/api';
     const $ = id => document.getElementById(id);
 
     // ===== Helpers sesión
@@ -340,20 +340,59 @@
     // ===== Catálogos
     const GRADOS=['WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0'];
     const FUERZAS=['MA','MB','MC','MD','ME','MF'];
-    const OPERACIONES=[
-      'UBICACIÓN LUGAR Y DIRECCIÓN','RETOMA DE INSTALACIONES','RESCATE DE REHENES','PATRULLAJE','CONTROL DE LA POBLACIÓN.',
-      'AISLAR EL ÁEREA','EMBOSCADA','GOLPE DE MANO','RECONOCIMIENTO','PERSECUCIÓN','DESTRUCCIÓN','INFILTRACIÓN','PLANEAMIENTO',
-      'EVACUACIÓN','EXFILTRACIÓN','ENVIAR REFUERZOS','NOS ATACAN','ALISTAMIENTO','MOV. HELITRANSPORTAD','MOV. FLUVIAL',
-      'MOV. POR VEHICULO TIE.','MOV. A PIE','MOV. ÁEREO','OP. AEROTRANSPORTADA','OP. DE INTELIGENCIA','OP. DE SEG.DIGNATARIOS',
-      'OP. DE SEGURIDAD','OP. DE PPI','OP. CONTRAINTELIGENCIA','OP. HELITRANSPORTADA','OP. PSICOLÓGICAS','SECUESTRO','ABASTECIMIENTO',
-      'EJERCICIO DE ENTRENAAMIENTO.','PLAN DE LLAMADAS','PRE ALERTA. ALERTA'
-    ];
+    const OPERACIONES = [
+  'UBICACIÓN LUGAR Y DIRECCIÓN',
+  'RETOMA DE INSTALACIONES',
+  'RESCATE DE REHENES',
+  'PATRULLAJE',
+  'CONTROL DE LA POBLACIÓN',
+  'GOLPE DE MANO',
+  'RECONOCIMIENTO',
+  'SEGUIMIENTO',               // antes: PERSECUCIÓN
+  'ELIMINACIÓN',               // antes: DESTRUCCIÓN
+  'INFILTRACIÓN',
+  'PLANEAMIENTO',
+  'EVACUACIÓN',
+  'EXFILTRACIÓN',
+  'ENVIAR REFUERZOS',
+  'ALISTAMIENTO',
+  'MOV. HELITRANSPORTADO',
+  'MOV. FLUVIAL',
+  'MOV. POR VEHÍCULO TERRESTRE',
+  'MOV. A PIE',
+  'MOV. AÉREO',
+  'OP. AEROTRANSPORTADA',
+  'OP. DE INTELIGENCIA',
+  'OP. DE SEGURIDAD',
+  'OP. DE PPI',
+  'OP. CONTRAINTELIGENCIA',
+  'OP. HELITRANSPORTADA',
+  'OP. PSICOLÓGICAS',
+  'SECUESTRO',
+  'ABASTECIMIENTO',
+  'EJERCICIO DE ENTRENAMIENTO',  // corregido
+  'PLAN DE LLAMADAS',
+  'PRE ALERTA. ALERTA',
+  // ==== NUEVOS TÉRMINOS ====
+  'SABOTAJE',
+  'REUNIÓN DE INFORMACIÓN',
+  'SUBVERSIÓN',
+  'TERRORISMO',
+  'CONTRASABOTAJE',
+  'CONTRASUBVERSIÓN',
+  'CONTRATERRORISMO',
+  'CONTROL DE INFORMACIÓN',
+  'REUBICACIÓN MILITAR',
+  'INCURSIÓN',
+  'RESCATE DE PRISIONEROS DE GUERRA',
+  'OTRAS CARACTERÍSTICAS ESPECIALES DE ICIS'
+];
     const LUGARES=Array.from({length:48},(_,i)=>String(352+i));
     const PERSONALIDADES=['HA','HB','HC','HD','HE','HF','HG','HH','HI','HJ','HK','HL','HM','HN','HO','HP','HQ','HR','HS','HT','HU','HV','HW','HX','HY','HZ','H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE'];
-    const UNIDADES=['0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9'];
+    const UNIDADES=['NO SE REGISTRA','0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9'];
     const ACCIONES_OP=['KA','KB','KC','KD','KE','KF','KG','KH','KI','KJ','KK','KL','KN'];
-    const MATERIAL=[...Array.from({length:26},(_,i)=>'L'+String.fromCharCode(65+i)),'L1','L2','L3','L4','L5','L6','L7'];
-    const TRANSP=Array.from({length:14},(_,i)=>'Y'+(i+1));
+    const MATERIAL=['NO SE REGISTRA', ...Array.from({length:26},(_,i)=>'L'+String.fromCharCode(65+i)),'L1','L2','L3','L4','L5','L6','L7'];
+    const TRANSP=['NO SE REGISTRA', ...Array.from({length:14},(_,i)=>'V'+(i+1))];
     const OTROS=['O1','O2','O3','O4','O5','O6','O7','O8','O9','OX','OY','ODE','ON','OT','OF','OG','OC','OPM','OE','OID','OS','OR','OH','OM','ODO','ODR'];
     const TIPODOC=['Z1A','Z2B','Z3C','Z4D','Z5E','Z6F','Z7G','Z8H','Z9I','Z10J','Z11K','Z12L','Z13M','Z14N','Z15O','Z16P'];
     function fillSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }); }
