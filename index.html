@@ -201,7 +201,7 @@
                 <select id="repTransporte"></select>
               </div>
               <div>
-                <label>Otros</label>
+                <label>Función y/o especialidad</label>
                 <select id="repOtros"></select>
               </div>
               <div>
@@ -339,23 +339,72 @@
     // ===== Catálogos
     const GRADOS=['WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0'];
     const FUERZAS=['MA','MB','MC','MD','ME','MF'];
+
     const OPERACIONES=[
-      'UBICACIÓN LUGAR Y DIRECCIÓN','RETOMA DE INSTALACIONES','RESCATE DE REHENES','PATRULLAJE','CONTROL DE LA POBLACIÓN.',
-      'AISLAR EL ÁEREA','EMBOSCADA','GOLPE DE MANO','RECONOCIMIENTO','PERSECUCIÓN','DESTRUCCIÓN','INFILTRACIÓN','PLANEAMIENTO',
-      'EVACUACIÓN','EXFILTRACIÓN','ENVIAR REFUERZOS','NOS ATACAN','ALISTAMIENTO','MOV. HELITRANSPORTAD','MOV. FLUVIAL',
-      'MOV. POR VEHICULO TIE.','MOV. A PIE','MOV. ÁEREO','OP. AEROTRANSPORTADA','OP. DE INTELIGENCIA','OP. DE SEG.DIGNATARIOS',
-      'OP. DE SEGURIDAD','OP. DE PPI','OP. CONTRAINTELIGENCIA','OP. HELITRANSPORTADA','OP. PSICOLÓGICAS','SECUESTRO','ABASTECIMIENTO',
-      'EJERCICIO DE ENTRENAAMIENTO.','PLAN DE LLAMADAS','PRE ALERTA. ALERTA'
+      'UBICACIÓN LUGAR Y DIRECCIÓN',
+      'RETOMA DE INSTALACIONES',
+      'RESCATE DE REHENES',
+      'PATRULLAJE',
+      'CONTROL DE LA POBLACIÓN.',
+      'EMBOSCADA',
+      'GOLPE DE MANO',
+      'RECONOCIMIENTO',
+      'SEGUIMIENTO',
+      'ELIMINACIÓN',
+      'INFILTRACIÓN',
+      'PLANEAMIENTO',
+      'EVACUACIÓN',
+      'EXFILTRACIÓN',
+      'ENVIAR REFUERZOS',
+      'ALISTAMIENTO',
+      'MOV. HELITRANSPORTAD',
+      'MOV. FLUVIAL',
+      'MOV. POR VEHICULO TIE.',
+      'MOV. A PIE',
+      'MOV. ÁEREO',
+      'OP. AEROTRANSPORTADA',
+      'OP. DE INTELIGENCIA',
+      'OP. PSICOLÓGICAS',
+      'SECUESTRO',
+      'ABASTECIMIENTO',
+      'EJERCICIO DE ENTRENAMIENTO.',
+      'PLAN DE LLAMADAS',
+      'PRE ALERTA. ALERTA',
+      // Nuevos términos
+      'SABOTAJE',
+      'REUNIÓN DE INFORMACIÓN',
+      'SUBVERSIÓN',
+      'TERRORISMO',
+      'CONTRA INTELIGENCIA',
+      'CONTRASABOTAJE',
+      'CONTRASUBVERSIÓN',
+      'CONTRATERRORISMO',
+      'CONTROL DE INFORMACIÓN',
+      'REUBICACIÓN MILITAR',
+      'INCURSIÓN',
+      'RESCATE DE PRISIONEROS DE GUERRA',
+      'OTRAS CARACTERÍSTICAS ESPECIALES DE ICIS'
     ];
+
     const LUGARES=Array.from({length:48},(_,i)=>String(352+i));
     const PERSONALIDADES=['HA','HB','HC','HD','HE','HF','HG','HH','HI','HJ','HK','HL','HM','HN','HO','HP','HQ','HR','HS','HT','HU','HV','HW','HX','HY','HZ','H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE'];
-    const UNIDADES=['0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9'];
+
+    const UNIDADES=['NO SE REGISTRA','0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9'];
     const ACCIONES_OP=['KA','KB','KC','KD','KE','KF','KG','KH','KI','KJ','KK','KL','KN'];
-    const MATERIAL=[...Array.from({length:26},(_,i)=>'L'+String.fromCharCode(65+i)),'L1','L2','L3','L4','L5','L6','L7'];
-    const TRANSP=Array.from({length:14},(_,i)=>'Y'+(i+1));
+    const MATERIAL=[...Array.from({length:26},(_,i)=>'L'+String.fromCharCode(65+i)),'L1','L2','L3','L4','L5','L6','L7','NO SE REGISTRA'];
+    const TRANSP=['NO SE REGISTRA', ...Array.from({length:14},(_,i)=>'V'+(i+1))];
+
     const OTROS=['O1','O2','O3','O4','O5','O6','O7','O8','O9','OX','OY','ODE','ON','OT','OF','OG','OC','OPM','OE','OID','OS','OR','OH','OM','ODO','ODR'];
     const TIPODOC=['Z1A','Z2B','Z3C','Z4D','Z5E','Z6F','Z7G','Z8H','Z9I','Z10J','Z11K','Z12L','Z13M','Z14N','Z15O','Z16P'];
-    function fillSelect(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }); }
+
+    function fillSelect(sel, arr){
+      sel.innerHTML='';
+      arr.forEach(v=>{
+        const o=document.createElement('option');
+        o.value=v; o.textContent=v;
+        sel.appendChild(o);
+      });
+    }
 
     // ===== Mapa & Agentes
     let map, agentsLayer, alertsLayer, myMarker=null;
@@ -364,7 +413,7 @@
       map = L.map('map').setView([-16.5,-68.15], 5);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
       agentsLayer = L.layerGroup().addTo(map);
-      alertsLayer = L.layerGroup().addTo(map); // capa para pings de alertas
+      alertsLayer = L.layerGroup().addTo(map);
       refreshAgents();
       setInterval(refreshAgents, 15000);
     }
@@ -383,8 +432,12 @@
     }
     function colorHEX(c){
       switch((c||'').toUpperCase()){
-        case 'ROJO': return '#ef4444'; case 'AMARILLO': return '#f59e0b'; case 'VERDE': return '#22c55e';
-        case 'AZUL': return '#3b82f6'; case 'NEGRO': return '#0f172a'; case 'BLANCO': return '#e5ecff';
+        case 'ROJO': return '#ef4444';
+        case 'AMARILLO': return '#f59e0b';
+        case 'VERDE': return '#22c55e';
+        case 'AZUL': return '#3b82f6';
+        case 'NEGRO': return '#0f172a';
+        case 'BLANCO': return '#e5ecff';
         default: return '#94a3b8';
       }
     }
@@ -406,7 +459,6 @@
         const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(body)});
         if(r.ok) return true;
       }catch(_){}
-      // fallback: sendBeacon
       try{
         const blob=new Blob([JSON.stringify(body)],{type:'application/json'});
         const ok=navigator.sendBeacon ? navigator.sendBeacon(url, blob) : false;
@@ -421,19 +473,32 @@
       const password=$('loginPass').value;
       if(!email||!password) return toast('Completa email y contraseña');
       try{
-        const r=await fetch(`${API}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+        const r=await fetch(`${API}/login`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({email,password})
+        });
         const data=await r.json(); if(!r.ok) throw new Error(data.message||'Error de login');
         setToken(data.token); setUser(data.user||{});
         routeAfterLogin();
-        // Acceso: si falla, a cola; si ok, que se vea en Admin
+
         const u=getUser();
         const accessItem={email:u.email,nombre:u.nombre||'',estado:'OK',fecha:Date.now()};
         const ok=await sendJSON(`${API}/admin/access/log`, accessItem, true);
-        if(!ok){ const backup={...accessItem,ip:'-'}; const loc=jget(LS_KEYS.localAccess,[]); loc.unshift(backup); jset(LS_KEYS.localAccess,loc); queue(LS_KEYS.pAccess,accessItem); }
-        // Geo inicial
+        if(!ok){
+          const backup={...accessItem,ip:'-'};
+          const loc=jget(LS_KEYS.localAccess,[]);
+          loc.unshift(backup); jset(LS_KEYS.localAccess,loc);
+          queue(LS_KEYS.pAccess,accessItem);
+        }
+
         if(navigator.geolocation){
           navigator.geolocation.getCurrentPosition(async pos=>{
-            const payload={lat:+pos.coords.latitude.toFixed(6),lng:+pos.coords.longitude.toFixed(6),color:$('repColor')?.value||'VERDE'};
+            const payload={
+              lat:+pos.coords.latitude.toFixed(6),
+              lng:+pos.coords.longitude.toFixed(6),
+              color:$('repColor')?.value||'VERDE'
+            };
             const ok=await sendJSON(`${API}/position`, payload, true);
             if(!ok) queue(LS_KEYS.pPos,payload);
             refreshAgents();
@@ -441,6 +506,7 @@
         }
       }catch(e){ toast(e.message); }
     }
+
     async function doRegister(){
       const nombre=$('regNombre').value.trim();
       const email=$('regEmail').value.trim();
@@ -449,11 +515,16 @@
       if(!nombre||!email||!pass||!pass2) return toast('Completa todos los campos');
       if(pass!==pass2) return toast('Las contraseñas no coinciden');
       try{
-        const r=await fetch(`${API}/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,password:pass,grado,fuerza})});
+        const r=await fetch(`${API}/register`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({nombre,email,password:pass,grado,fuerza})
+        });
         const data=await r.json(); if(!r.ok) throw new Error(data.message||'No se pudo registrar');
         toggleLogin(true); window.scrollTo({top:0,behavior:'auto'});
       }catch(e){ toast(e.message); }
     }
+
     function routeAfterLogin(){
       const u=getUser();
       $('auth').classList.add('hide'); $('auth').innerHTML='';
@@ -463,16 +534,15 @@
       if(u.is_admin) $('btnAdmin').classList.remove('hide');
       showOperativo(); initMap(); cargarAlertasUsuario();
       tryFlushPending();
-      // Auto-refresh cuando seas admin
       if(u.is_admin){
         setInterval(cargarAlertasAdmin, 10000);
         setInterval(cargarAccesos, 10000);
       }
     }
-    function logout(){ setToken(''); setUser({}); location.reload(); }
-    function toggleLogin(on){ $('loginCard').classList.toggle('hide', !on); }
 
-    // ===== Ubicación (botón)
+    function logout(){ setToken(''); setUser({}); location.reload(); }
+
+    // ===== Ubicación botón
     async function usarMiUbicacion(){
       if(!navigator.geolocation){ toast('Geolocalización no disponible'); return; }
       $('btnUbicacion').disabled = true;
@@ -501,32 +571,38 @@
       );
     }
 
-    // ===== Flush periódico de colas
+    // ===== Flush periódico
     async function tryFlushPending(){
       const token=getToken(); if(!token) return;
 
-      // Accesos
       let qa=jget(LS_KEYS.pAccess,[]);
       if(qa.length){
         const left=[];
-        for(const a of qa){ const ok=await sendJSON(`${API}/admin/access/log`, a, true); if(!ok) left.push(a); }
+        for(const a of qa){
+          const ok=await sendJSON(`${API}/admin/access/log`, a, true);
+          if(!ok) left.push(a);
+        }
         jset(LS_KEYS.pAccess,left);
       }
 
-      // Posiciones
       let qp=jget(LS_KEYS.pPos,[]);
       if(qp.length){
         const left=[];
-        for(const p of qp){ const ok=await sendJSON(`${API}/position`, p, true); if(!ok) left.push(p); }
+        for(const p of qp){
+          const ok=await sendJSON(`${API}/position`, p, true);
+          if(!ok) left.push(p);
+        }
         jset(LS_KEYS.pPos,left);
         refreshAgents();
       }
 
-      // Alertas
       let qr=jget(LS_KEYS.pAlerts,[]);
       if(qr.length){
         const left=[];
-        for(const rep of qr){ const ok=await sendJSON(`${API}/reports`, rep, true); if(!ok) left.push(rep); }
+        for(const rep of qr){
+          const ok=await sendJSON(`${API}/reports`, rep, true);
+          if(!ok) left.push(rep);
+        }
         jset(LS_KEYS.pAlerts,left);
       }
     }
@@ -535,13 +611,22 @@
     // ===== Reportes & Alertas
     async function enviarReporte(){
       const p={
-        nivel:$('repNivel').value, operacion:$('repOperacion').value, color:$('repColor').value,
-        pais_ciudad:$('repPaisCiudad').value.trim(), lugar_code:$('repLugar').value,
-        personalidad:$('repPersonalidad').value, unidad_policial:$('repUnidad').value,
-        accion_oponente:$('repAccionOponente').value, material_equipo:$('repMaterial').value,
-        transporte:$('repTransporte').value, otros:$('repOtros').value,
-        clasificacion_seg:$('repClasif').value, tipo_documento:$('repTipoDoc').value,
-        detalle:$('repDetalle').value.trim(), lat:Number($('repLat').value), lng:Number($('repLng').value),
+        nivel:$('repNivel').value,
+        operacion:$('repOperacion').value,
+        color:$('repColor').value,
+        pais_ciudad:$('repPaisCiudad').value.trim(),
+        lugar_code:$('repLugar').value,
+        personalidad:$('repPersonalidad').value,
+        unidad_policial:$('repUnidad').value,
+        accion_oponente:$('repAccionOponente').value,
+        material_equipo:$('repMaterial').value,
+        transporte:$('repTransporte').value,
+        otros:$('repOtros').value,
+        clasificacion_seg:$('repClasif').value,
+        tipo_documento:$('repTipoDoc').value,
+        detalle:$('repDetalle').value.trim(),
+        lat:Number($('repLat').value),
+        lng:Number($('repLng').value),
         fecha: Date.now()
       };
       if(!p.pais_ciudad||!p.detalle) return toast('Completa País/Ciudad y Detalle');
@@ -549,7 +634,6 @@
       const ok=await sendJSON(`${API}/reports`, p, true);
       if(!ok){ queue(LS_KEYS.pAlerts,p); }
 
-      // siempre lo mostramos local para feedback inmediato
       const loc=jget(LS_KEYS.localAlerts,[]); loc.unshift(p); jset(LS_KEYS.localAlerts,loc);
       cargarAlertasUsuario();
       if(getUser()?.is_admin) cargarAlertasAdmin();
@@ -560,22 +644,19 @@
       let server = [];
       try{
         const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json(); if(r.ok) server = data.alertas||[];
+        const data=await r.json();
+        if(r.ok) server = data.alertas || data.reports || data.alerts || [];
       }catch(_){}
       const local = jget(LS_KEYS.localAlerts,[]);
       const all = dedupeAlerts([...local, ...server]);
       renderFeed(all); renderTableUser(all);
 
-      // --- DIBUJAR ALERTAS EN EL MAPA (USUARIO) ---
-      if (alertsLayer) {
+      if (alertsLayer && map){
         alertsLayer.clearLayers();
-        all.forEach(a => {
-          if (typeof a.lat === 'number' && typeof a.lng === 'number') {
-            const icon = L.divIcon({
-              className:'',
-              html:'<div style="width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'
-            });
-            L.marker([a.lat, a.lng], {icon})
+        all.forEach(a=>{
+          if(typeof a.lat==='number' && typeof a.lng==='number'){
+            const icon=L.divIcon({className:'',html:'<div style="width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'});
+            L.marker([a.lat,a.lng],{icon})
               .addTo(alertsLayer)
               .bindPopup(`<b>${esc(a.operacion||'-')}</b><br>${esc(a.detalle||'')}`);
           }
@@ -587,21 +668,18 @@
       let server = [];
       try{
         const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json(); if(r.ok) server = data.alertas||[];
+        const data=await r.json();
+        if(r.ok) server = data.alertas || data.reports || data.alerts || [];
       }catch(_){}
       const all = dedupeAlerts([...jget(LS_KEYS.localAlerts,[]), ...server]);
       renderTableAdmin(all);
 
-      // --- DIBUJAR ALERTAS EN EL MAPA (ADMIN) ---
-      if (alertsLayer) {
+      if (alertsLayer && map){
         alertsLayer.clearLayers();
-        all.forEach(a => {
-          if (typeof a.lat === 'number' && typeof a.lng === 'number') {
-            const icon = L.divIcon({
-              className:'',
-              html:'<div style="width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'
-            });
-            L.marker([a.lat, a.lng], {icon})
+        all.forEach(a=>{
+          if(typeof a.lat==='number' && typeof a.lng==='number'){
+            const icon=L.divIcon({className:'',html:'<div style="width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'});
+            L.marker([a.lat,a.lng],{icon})
               .addTo(alertsLayer)
               .bindPopup(`<b>${esc(a.operacion||'-')}</b><br>${esc(a.detalle||'')}`);
           }
@@ -619,11 +697,16 @@
 
     function renderFeed(items){
       const box=$('feedAlertas'); box.innerHTML='';
-      if(!items.length){ box.innerHTML='<div class="muted">Sin alertas.</div>'; return; }
+      if(!items.length){
+        box.innerHTML='<div class="muted">Sin alertas.</div>';
+        return;
+      }
       items.forEach(o=>{
         const row=document.createElement('div');
         row.style.border='1px solid var(--line)';
-        row.style.borderRadius='12px'; row.style.padding='10px'; row.style.marginBottom='8px';
+        row.style.borderRadius='12px';
+        row.style.padding='10px';
+        row.style.marginBottom='8px';
         row.innerHTML = `
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span class="chip">${o.nivel||'-'}</span>
@@ -645,21 +728,35 @@
       rows.forEach(o=>{
         const tr=document.createElement('tr');
         tr.innerHTML=`
-          <td>${fmtDate(o.fecha)}</td><td><span class="chip">${o.nivel||'-'}</span></td>
-          <td>${esc(o.operacion)}</td><td>${esc(o.pais_ciudad)}</td><td>${esc(o.lugar_code)}</td>
-          <td>${esc(o.clasificacion_seg)}</td><td>${num(o.lat)}</td><td>${num(o.lng)}</td><td>${esc(o.detalle)}</td>`;
+          <td>${fmtDate(o.fecha)}</td>
+          <td><span class="chip">${o.nivel||'-'}</span></td>
+          <td>${esc(o.operacion)}</td>
+          <td>${esc(o.pais_ciudad)}</td>
+          <td>${esc(o.lugar_code)}</td>
+          <td>${esc(o.clasificacion_seg)}</td>
+          <td>${num(o.lat)}</td>
+          <td>${num(o.lng)}</td>
+          <td>${esc(o.detalle)}</td>`;
         tb.appendChild(tr);
       });
     }
 
     function renderTableAdmin(rows){
-      const tb=$('tablaAdminAlertas').querySelector('tbody'); if(!tb) return; tb.innerHTML='';
+      const tb=$('tablaAdminAlertas').querySelector('tbody');
+      if(!tb) return;
+      tb.innerHTML='';
       rows.forEach(o=>{
         const tr=document.createElement('tr');
         tr.innerHTML=`
-          <td>${fmtDate(o.fecha)}</td><td><span class="chip">${o.nivel||'-'}</span></td>
-          <td>${esc(o.operacion)}</td><td>${esc(o.pais_ciudad)}</td><td>${esc(o.lugar_code)}</td>
-          <td>${esc(o.clasificacion_seg)}</td><td>${num(o.lat)}</td><td>${num(o.lng)}</td><td>${esc(o.detalle)}</td>
+          <td>${fmtDate(o.fecha)}</td>
+          <td><span class="chip">${o.nivel||'-'}</span></td>
+          <td>${esc(o.operacion)}</td>
+          <td>${esc(o.pais_ciudad)}</td>
+          <td>${esc(o.lugar_code)}</td>
+          <td>${esc(o.clasificacion_seg)}</td>
+          <td>${num(o.lat)}</td>
+          <td>${num(o.lng)}</td>
+          <td>${esc(o.detalle)}</td>
           <td>${esc(o?.usuario?.email||'-')}</td>`;
         tb.appendChild(tr);
       });
@@ -670,26 +767,38 @@
       const doc = `<!doctype html><html><head><meta charset="utf-8"><title>Alertas</title>
       <style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;font-family:Arial,sans-serif;font-size:12px}</style>
       </head><body>${html}</body></html>`;
-      const win=window.open('','_blank'); win.document.open(); win.document.write(doc); win.document.close(); win.onload=()=>win.print();
+      const win=window.open('','_blank');
+      win.document.open(); win.document.write(doc); win.document.close();
+      win.onload=()=>win.print();
     }
 
-    // ===== Accesos (listar)
+    // ===== Accesos
     function getLocalAccess(){ return jget(LS_KEYS.localAccess,[]); }
+
     function cargarAccesos(){
       let server=[];
       fetch(`${API}/admin/access`,{headers:{'Authorization':'Bearer '+getToken()}})
-        .then(r=>r.json()).then(d=>{ server=d?.accesos||[]; draw(); })
+        .then(r=>r.json())
+        .then(d=>{
+          server = d?.accesos || d?.accesses || [];
+          draw();
+        })
         .catch(()=>draw());
 
       function draw(){
         const all=[...getLocalAccess(),...server];
-        const tb=$('tablaAccesos').querySelector('tbody'); if(!tb) return; tb.innerHTML='';
-        if(!all.length){ tb.innerHTML=''; return; }
+        const tb=$('tablaAccesos').querySelector('tbody');
+        if(!tb) return;
+        tb.innerHTML='';
+        if(!all.length) return;
         all.forEach(a=>{
           const tr=document.createElement('tr');
           tr.innerHTML=`
-            <td>${fmtDate(a.fecha)}</td><td>${esc(a.email)}</td><td>${esc(a.nombre||'')}</td>
-            <td>${esc(a.ip||'-')}</td><td><span class="chip">${esc(a.estado||'OK')}</span></td>
+            <td>${fmtDate(a.fecha)}</td>
+            <td>${esc(a.email)}</td>
+            <td>${esc(a.nombre||'')}</td>
+            <td>${esc(a.ip||'-')}</td>
+            <td><span class="chip">${esc(a.estado||'OK')}</span></td>
             <td style="text-align:right">
               <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
               <button class="btn btn-danger" style="margin-left:6px" onclick="eliminarAccesos('${a.email||''}')">Eliminar</button>
@@ -698,22 +807,33 @@
         });
       }
     }
+
     async function bloquearAcceso(email){
       if(!email) return;
       try{
-        const r=await fetch(`${API}/admin/access/block`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({email})});
+        const r=await fetch(`${API}/admin/access/block`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body:JSON.stringify({email})
+        });
         if(!r.ok) throw 0;
         cargarAccesos();
       }catch(_){ toast('Bloqueo local no soportado'); }
     }
+
     async function eliminarAccesos(email){
       if(!email) return;
       try{
-        const r=await fetch(`${API}/admin/access`,{method:'DELETE',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({email})});
+        const r=await fetch(`${API}/admin/access`,{
+          method:'DELETE',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body:JSON.stringify({email})
+        });
         if(!r.ok) throw 0;
         cargarAccesos();
       }catch(_){
-        const rest=getLocalAccess().filter(x=>x.email!==email); jset(LS_KEYS.localAccess,rest);
+        const rest=getLocalAccess().filter(x=>x.email!==email);
+        jset(LS_KEYS.localAccess,rest);
         cargarAccesos();
       }
     }
@@ -725,17 +845,31 @@
 
     // Init
     (function init(){
-      const ids=[['regGrado',GRADOS],['regFuerza',FUERZAS],['repOperacion',OPERACIONES],['repLugar',LUGARES],
-                 ['repPersonalidad',PERSONALIDADES],['repUnidad',UNIDADES],['repAccionOponente',ACCIONES_OP],
-                 ['repMaterial',MATERIAL],['repTransporte',TRANSP],['repOtros',OTROS],['repTipoDoc',TIPODOC]];
-      ids.forEach(([id,arr])=>{ const el=$(id); if(el) fillSelect(el,arr); });
+      const ids=[
+        ['regGrado',GRADOS],
+        ['regFuerza',FUERZAS],
+        ['repOperacion',OPERACIONES],
+        ['repLugar',LUGARES],
+        ['repPersonalidad',PERSONALIDADES],
+        ['repUnidad',UNIDADES],
+        ['repAccionOponente',ACCIONES_OP],
+        ['repMaterial',MATERIAL],
+        ['repTransporte',TRANSP],
+        ['repOtros',OTROS],
+        ['repTipoDoc',TIPODOC]
+      ];
+      ids.forEach(([id,arr])=>{
+        const el=$(id);
+        if(el) fillSelect(el,arr);
+      });
 
       const u=getUser();
       if(u?.email){
         $('auth').classList.add('hide'); $('auth').innerHTML='';
         $('sessionBox').classList.remove('hide');
         $('whoami').textContent = `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'}`;
-        $('btnOperativo').classList.remove('hide'); if(u.is_admin) $('btnAdmin').classList.remove('hide');
+        $('btnOperativo').classList.remove('hide');
+        if(u.is_admin) $('btnAdmin').classList.remove('hide');
         showOperativo(); initMap(); cargarAlertasUsuario();
         tryFlushPending();
         if(u.is_admin){
@@ -743,9 +877,11 @@
           setInterval(cargarAccesos, 10000);
         }
       }
-      // resiliencia: si cambias de pestaña, intenta enviar pendientes
-      document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') tryFlushPending(); });
+      document.addEventListener('visibilitychange', ()=>{
+        if(document.visibilityState==='hidden') tryFlushPending();
+      });
     })();
   </script>
 </body>
 </html>
+
