@@ -3,886 +3,206 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CIE-297 | Monitoreo en Tiempo Real</title>
+  <title>CITY GPS</title>
   <link rel="icon" href="assets/logo.png" />
 
-  <!-- PWA: manifest + color + iOS icon -->
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#0b1424">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-
   <!-- Leaflet -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin="">
-  <script defer
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    defer
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
 
   <style>
     :root{
-      --bg:#0b1424;--card:#101b31;--text:#e5ecff;--muted:#93a4c7;
-      --ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--line:rgba(255,255,255,.08);
-      --chip:#152238;
+      --bg:#0b1424;
+      --card:#101b31;
+      --text:#e5ecff;
+      --muted:#93a4c7;
+      --line:rgba(255,255,255,.08);
+      --accent:#22c55e;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Noto Sans,sans-serif;background:var(--bg);color:#e5ecff}
-    .wrap{max-width:1250px;margin:0 auto;padding:20px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
-    h1{font-size:22px;margin:0 0 10px}
-    h2{font-size:18px;margin:0 0 10px}
-    label{display:block;font-size:14px;margin:10px 0 6px}
-    input,select,textarea,button{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:#0e1a31;color:#e5ecff}
-    textarea{min-height:84px;resize:vertical}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-    .btn{cursor:pointer;border:1px solid var(--line)}
-    .btn-ok{background:var(--ok);color:#08120b;border:none}
-    .btn-warn{background:var(--warn);color:#1b1207;border:none}
-    .btn-danger{background:var(--danger);color:#220b0b;border:none}
-    .chip{display:inline-block;padding:4px 8px;border-radius:999px;background:var(--chip);border:1px solid var(--line);font-size:12px}
-    .muted{color:var(--muted)} .hide{display:none}
-    table{width:100%;border-collapse:collapse} th,td{padding:9px;border-bottom:1px solid var(--line);font-size:14px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-    .topbar img{height:36px}
-    .top-actions{display:flex;gap:8px}
-    .grid2{display:grid;grid-template-columns:2fr 1.2fr;gap:16px}
-    #map{width:100%;height:360px;border-radius:14px;border:1px solid var(--line);margin-top:6px}
-    .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    @media (max-width:1024px){.grid2,.row,.row3{grid-template-columns:1fr}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{
+      height:100%;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Noto Sans,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .wrap{
+      max-width:900px;
+      margin:0 auto;
+      padding:16px;
+    }
+    .card{
+      background:var(--card);
+      border-radius:18px;
+      border:1px solid var(--line);
+      padding:16px 18px;
+      box-shadow:0 18px 40px rgba(0,0,0,.35);
+    }
+    h1{
+      font-size:22px;
+      margin-bottom:6px;
+    }
+    p{font-size:14px;margin-bottom:10px;color:var(--muted)}
+    #map{
+      width:100%;
+      height:70vh;
+      border-radius:14px;
+      border:1px solid var(--line);
+      margin-top:10px;
+      background:#020617;
+    }
+    .top{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .top img{height:40px;border-radius:8px}
+    .badge{
+      display:inline-block;
+      padding:3px 8px;
+      font-size:11px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      color:var(--muted);
+    }
+    button{
+      margin-top:10px;
+      padding:10px 14px;
+      border-radius:999px;
+      border:none;
+      background:var(--accent);
+      color:#031208;
+      font-weight:600;
+      cursor:pointer;
+    }
+    button:disabled{
+      opacity:.6;
+      cursor:default;
+    }
+    .status{
+      font-size:12px;
+      margin-top:6px;
+      color:var(--muted);
+    }
+    footer{
+      text-align:center;
+      margin-top:14px;
+      font-size:12px;
+      color:var(--muted);
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- Topbar -->
-    <div class="topbar">
-      <div style="display:flex;gap:10px;align-items:center">
-        <img src="assets/logo.png" alt="CIE-297"/>
+    <div class="card">
+      <div class="top">
+        <img src="assets/logo.png" alt="CITY GPS">
         <div>
-          <div class="chip">CIE-297</div>
-          <div class="muted" style="font-size:12px;margin-top:2px">Monitoreo en tiempo real</div>
+          <h1>CITY GPS</h1>
+          <span class="badge">Monitoreo de ubicación en tiempo real</span>
         </div>
       </div>
-      <div class="top-actions">
-        <button id="btnOperativo" class="btn hide" onclick="showOperativo()">Operativo</button>
-        <button id="btnAdmin" class="btn hide" onclick="showAdmin()">Admin</button>
-        <div id="sessionBox" class="hide inline">
-          <span id="whoami" class="muted"></span>
-          <button class="btn" onclick="logout()">Salir</button>
-        </div>
-      </div>
+
+      <p>
+        Presiona <b>“Iniciar rastreo”</b> y acepta el permiso de ubicación.
+        El punto en el mapa se actualizará cuando te muevas, similar al
+        envío de ubicación en WhatsApp.
+      </p>
+
+      <button id="btnStart">Iniciar rastreo</button>
+      <div id="status" class="status">Esperando a que inicies el rastreo…</div>
+
+      <div id="map"></div>
     </div>
 
-    <!-- LANDING -->
-    <div id="auth" class="card">
-      <h1>Crear cuenta</h1>
-      <div class="row">
-        <div>
-          <label>Nombre</label>
-          <input id="regNombre" placeholder="Nombre y apellido"/>
-        </div>
-        <div>
-          <label>Email</label>
-          <input id="regEmail" type="email" placeholder="nombre@cie297.mil"/>
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>Contraseña</label>
-          <input id="regPass" type="password" placeholder="••••••"/>
-        </div>
-        <div>
-          <label>Repetir contraseña</label>
-          <input id="regPass2" type="password" placeholder="••••••"/>
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>Grado</label>
-          <select id="regGrado"></select>
-        </div>
-        <div>
-          <label>Fuerza</label>
-          <select id="regFuerza"></select>
-        </div>
-      </div>
-      <button class="btn btn-warn" style="margin-top:12px" onclick="doRegister()">Registrarme</button>
-      <div style="margin-top:12px">
-        <span class="muted" style="font-size:13px">¿Ya tienes cuenta?</span>
-        <button class="btn" style="margin-left:8px" onclick="toggleLogin(true)">Iniciar sesión</button>
-      </div>
-
-      <!-- Login -->
-      <div id="loginCard" class="hide" style="margin-top:14px">
-        <h2>Iniciar sesión</h2>
-        <label>Email</label>
-        <input id="loginEmail" type="email" placeholder="usuario@cie297.mil"/>
-        <label>Contraseña</label>
-        <input id="loginPass" type="password" placeholder="••••••"/>
-        <div class="inline" style="margin-top:10px">
-          <button class="btn btn-ok" onclick="doLogin()">Entrar</button>
-          <button class="btn" onclick="toggleLogin(false)">Ocultar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- PANEL OPERATIVO -->
-    <div id="panelOperativo" class="hide">
-      <div class="grid2">
-        <div>
-          <div class="card">
-            <h1>Área Operativa</h1>
-            <div id="map"></div>
-            <div class="muted" style="font-size:12px;margin-top:6px">
-              Ubicaciones de agentes activos (se registra al iniciar sesión).
-            </div>
-          </div>
-
-          <div class="card" style="margin-top:16px">
-            <h2>Misiones y Reportes</h2>
-            <div class="row3">
-              <div>
-                <label>Nivel</label>
-                <select id="repNivel">
-                  <option value="ALTA">ALTA (CRÍTICO)</option>
-                  <option value="MEDIA">MEDIA (RELEVANTE)</option>
-                  <option value="BAJA">BAJA (NO PRIORITARIA)</option>
-                </select>
-              </div>
-              <div>
-                <label>Operaciones</label>
-                <select id="repOperacion"></select>
-              </div>
-              <div>
-                <label>Código indicativo de color</label>
-                <select id="repColor">
-                  <option>ROJO</option><option>AMARILLO</option><option>VERDE</option>
-                  <option>AZUL</option><option>NEGRO</option><option>BLANCO</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="row3">
-              <div>
-                <label>País / Ciudad</label>
-                <input id="repPaisCiudad" placeholder="Bolivia - La Paz"/>
-              </div>
-              <div>
-                <label>Lugar </label>
-                <select id="repLugar"></select>
-              </div>
-              <div>
-                <label>Personalidades</label>
-                <select id="repPersonalidad"></select>
-              </div>
-            </div>
-
-            <div class="row3">
-              <div>
-                <label>Unidad Policial </label>
-                <select id="repUnidad"></select>
-              </div>
-              <div>
-                <label>Acciones del oponente </label>
-                <select id="repAccionOponente"></select>
-              </div>
-              <div>
-                <label>Material / Equipo </label>
-                <select id="repMaterial"></select>
-              </div>
-            </div>
-
-            <div class="row3">
-              <div>
-                <label>Transporte </label>
-                <select id="repTransporte"></select>
-              </div>
-              <div>
-                <label>Función y/o especialidad</label>
-                <select id="repOtros"></select>
-              </div>
-              <div>
-                <label>Clasificación SEG</label>
-                <select id="repClasif">
-                  <option>SAGITARIO</option><option>TAURO</option>
-                  <option>GEMINIS</option><option>ARIES</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="row">
-              <div>
-                <label>Tipo de documento</label>
-                <select id="repTipoDoc"></select>
-              </div>
-              <div>
-                <label>Detalle</label>
-                <input id="repDetalle" placeholder="Descripción breve del evento"/>
-              </div>
-            </div>
-
-            <div class="row">
-              <div>
-                <label>Latitud</label>
-                <input id="repLat" type="number" step="any" placeholder="-16.5"/>
-              </div>
-              <div>
-                <label>Longitud</label>
-                <input id="repLng" type="number" step="any" placeholder="-68.15"/>
-              </div>
-            </div>
-			
-
-            <div class="inline" style="margin-top:6px">
-              <button class="btn" id="btnUbicacion" onclick="usarMiUbicacion()">Usar mi ubicación</button>
-              <span class="muted" style="font-size:12px">Se llenarán Lat/Lng al aceptar permisos.</span>
-            </div>
-
-            <button class="btn btn-ok" style="margin-top:12px" onclick="enviarReporte()">Enviar alerta</button>
-          </div>
-        </div>
-
-        <div>
-          <div class="card">
-            <div class="inline">
-              <button class="btn btn-ok" onclick="cargarAlertasUsuario()">Ver todas</button>
-              <button class="btn" onclick="exportarPDF()">Exportar PDF</button>
-              <button class="btn" onclick="cargarAccesos()">Accesos</button>
-            </div>
-          </div>
-
-          <div class="card" style="margin-top:16px">
-            <h2>Alertas</h2>
-            <div id="feedAlertas" class="muted" style="max-height:420px;overflow:auto"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h2>Alertas (tabla)</h2>
-        <table id="tablaAlertas">
-          <thead>
-            <tr>
-              <th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>País/Ciudad</th>
-              <th>Lugar</th><th>Clasif</th><th>Lat</th><th>Lng</th><th>Detalle</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- PANEL ADMIN -->
-    <div id="panelAdmin" class="hide">
-      <div class="card">
-        <h1>Panel Administrador</h1>
-        <div class="inline">
-          <button class="btn btn-ok" onclick="cargarAlertasAdmin()">Ver todas las alertas</button>
-          <button class="btn" onclick="exportarPDF()">Exportar PDF</button>
-          <button class="btn" onclick="cargarAccesos()">Ver accesos</button>
-          <button class="btn" onclick="showOperativo()">Volver a Operativo</button>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h2>Alertas</h2>
-        <table id="tablaAdminAlertas">
-          <thead>
-            <tr>
-              <th>Fecha/Hora</th><th>Nivel</th><th>Operación</th><th>País/Ciudad</th>
-              <th>Lugar</th><th>Clasif</th><th>Lat</th><th>Lng</th><th>Detalle</th><th>Usuario</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h2>Accesos</h2>
-        <table id="tablaAccesos">
-          <thead>
-            <tr><th>Fecha/Hora</th><th>Email</th><th>Nombre</th><th>IP</th><th>Estado</th><th style="text-align:right">Acciones</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <p class="muted" style="text-align:center;margin-top:16px">© CIE-297</p>
+    <footer>© CITY GPS</footer>
   </div>
 
-  <!-- PWA: registro del Service Worker -->
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(()=>{});
-      });
-    }
-  </script>
+    let map, marker, pathLine;
+    let coords = [];
 
-  <script>
-    const API = '/api';
-    const $ = id => document.getElementById(id);
+    function initMap(lat, lng){
+      if(!map){
+        map = L.map('map').setView([lat,lng], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+      } else {
+        map.setView([lat,lng], map.getZoom());
+      }
 
-    // ===== Helpers sesión
-    function getToken(){ return localStorage.getItem('token')||''; }
-    function setToken(v){ localStorage.setItem('token', v||''); }
-    function setUser(u){ localStorage.setItem('user', JSON.stringify(u||{})); }
-    function getUser(){ try{return JSON.parse(localStorage.getItem('user')||'{}')}catch{return{}} }
-    function toast(m){ alert(m); }
-    function show(id){ $(id).classList.remove('hide'); }
-    function hide(id){ $(id).classList.add('hide'); }
-    function toggleLogin(on){ $('loginCard').classList.toggle('hide', !on); }
-
-    // ===== Catálogos
-    const GRADOS=['WW','W1','W2','W3','W4','W5','W6','W7','W8','W9','W0'];
-    const FUERZAS=['MA','MB','MC','MD','ME','MF'];
-
-    const OPERACIONES=[
-      'UBICACIÓN LUGAR Y DIRECCIÓN',
-      'RETOMA DE INSTALACIONES',
-      'RESCATE DE REHENES',
-      'PATRULLAJE',
-      'CONTROL DE LA POBLACIÓN.',
-      'EMBOSCADA',
-      'GOLPE DE MANO',
-      'RECONOCIMIENTO',
-      'SEGUIMIENTO',
-      'ELIMINACIÓN',
-      'INFILTRACIÓN',
-      'PLANEAMIENTO',
-      'EVACUACIÓN',
-      'EXFILTRACIÓN',
-      'ENVIAR REFUERZOS',
-      'ALISTAMIENTO',
-      'MOV. HELITRANSPORTAD',
-      'MOV. FLUVIAL',
-      'MOV. POR VEHICULO TIE.',
-      'MOV. A PIE',
-      'MOV. ÁEREO',
-      'OP. AEROTRANSPORTADA',
-      'OP. DE INTELIGENCIA',
-      'OP. PSICOLÓGICAS',
-      'SECUESTRO',
-      'ABASTECIMIENTO',
-      'EJERCICIO DE ENTRENAMIENTO.',
-      'PLAN DE LLAMADAS',
-      'PRE ALERTA. ALERTA',
-      // Nuevos términos
-      'SABOTAJE',
-      'REUNIÓN DE INFORMACIÓN',
-      'SUBVERSIÓN',
-      'TERRORISMO',
-      'CONTRA INTELIGENCIA',
-      'CONTRASABOTAJE',
-      'CONTRASUBVERSIÓN',
-      'CONTRATERRORISMO',
-      'CONTROL DE INFORMACIÓN',
-      'REUBICACIÓN MILITAR',
-      'INCURSIÓN',
-      'RESCATE DE PRISIONEROS DE GUERRA',
-      'OTRAS CARACTERÍSTICAS ESPECIALES DE ICIS'
-    ];
-
-    const LUGARES=Array.from({length:48},(_,i)=>String(352+i));
-    const PERSONALIDADES=['HA','HB','HC','HD','HE','HF','HG','HH','HI','HJ','HK','HL','HM','HN','HO','HP','HQ','HR','HS','HT','HU','HV','HW','HX','HY','HZ','H1','H2','H3','H4','H5','H11','H22','H33','H44','H55','HCF','HSM','HDP','HDF','HGU','HPU','HIA','HSP','HAE'];
-
-    const UNIDADES=['NO SE REGISTRA','0Y1','0Y2','0Y3','0Y4','0Y5','0Y6','0Y7','0Y8','0Y9'];
-    const ACCIONES_OP=['KA','KB','KC','KD','KE','KF','KG','KH','KI','KJ','KK','KL','KN'];
-    const MATERIAL=[...Array.from({length:26},(_,i)=>'L'+String.fromCharCode(65+i)),'L1','L2','L3','L4','L5','L6','L7','NO SE REGISTRA'];
-    const TRANSP=['NO SE REGISTRA', ...Array.from({length:14},(_,i)=>'V'+(i+1))];
-
-    const OTROS=['O1','O2','O3','O4','O5','O6','O7','O8','O9','OX','OY','ODE','ON','OT','OF','OG','OC','OPM','OE','OID','OS','OR','OH','OM','ODO','ODR'];
-    const TIPODOC=['Z1A','Z2B','Z3C','Z4D','Z5E','Z6F','Z7G','Z8H','Z9I','Z10J','Z11K','Z12L','Z13M','Z14N','Z15O','Z16P'];
-
-    function fillSelect(sel, arr){
-      sel.innerHTML='';
-      arr.forEach(v=>{
-        const o=document.createElement('option');
-        o.value=v; o.textContent=v;
-        sel.appendChild(o);
-      });
-    }
-
-    // ===== Mapa & Agentes
-    let map, agentsLayer, alertsLayer, myMarker=null;
-    function initMap(){
-      if(map) return;
-      map = L.map('map').setView([-16.5,-68.15], 5);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
-      agentsLayer = L.layerGroup().addTo(map);
-      alertsLayer = L.layerGroup().addTo(map);
-      refreshAgents();
-      setInterval(refreshAgents, 15000);
-    }
-    async function refreshAgents(){
-      if(!getToken()||!map) return;
-      try{
-        const r = await fetch(`${API}/agents`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data = await r.json(); if(!r.ok) throw new Error(data.message||'Err');
-        agentsLayer.clearLayers();
-        (data.agents||[]).forEach(a=>{
-          if(typeof a.lat!=='number'||typeof a.lng!=='number') return;
-          const icon=L.divIcon({className:'',html:`<div style="width:14px;height:14px;border-radius:50%;border:2px solid #fff;background:${colorHEX(a.color)}"></div>`});
-          L.marker([a.lat,a.lng],{icon}).addTo(agentsLayer).bindPopup(`<b>${a.email}</b><br>${a.color}`);
+      // Marcador
+      if(!marker){
+        const icon = L.divIcon({
+          className:'',
+          html:'<div style="width:18px;height:18px;border-radius:50%;border:3px solid #fff;background:#22c55e;"></div>'
         });
-      }catch(_){}
-    }
-    function colorHEX(c){
-      switch((c||'').toUpperCase()){
-        case 'ROJO': return '#ef4444';
-        case 'AMARILLO': return '#f59e0b';
-        case 'VERDE': return '#22c55e';
-        case 'AZUL': return '#3b82f6';
-        case 'NEGRO': return '#0f172a';
-        case 'BLANCO': return '#e5ecff';
-        default: return '#94a3b8';
+        marker = L.marker([lat,lng], {icon}).addTo(map).bindPopup('Tu ubicación');
+      }else{
+        marker.setLatLng([lat,lng]);
+      }
+
+      // Guardar puntos para la ruta
+      coords.push([lat,lng]);
+      if(coords.length > 1){
+        if(pathLine) pathLine.remove();
+        pathLine = L.polyline(coords, {color:'#38bdf8', weight:3}).addTo(map);
       }
     }
 
-    // ===== Navegación
-    function showOperativo(){ hide('panelAdmin'); show('panelOperativo'); window.scrollTo({top:0,behavior:'auto'}); }
-    function showAdmin(){ hide('panelOperativo'); show('panelAdmin'); window.scrollTo({top:0,behavior:'auto'}); }
-
-    // ===== Envío robusto: fetch -> sendBeacon -> cola
-    const LS_KEYS={pAlerts:'pendingAlerts', pAccess:'pendingAccess', pPos:'pendingPositions', localAlerts:'localAlerts', localAccess:'localAccess'};
-    const jget=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch{return d}};
-    const jset=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
-    function queue(k,obj){ const q=jget(k,[]); q.unshift(obj); jset(k,q); }
-
-    async function sendJSON(url, body, useToken=true){
-      const headers={'Content-Type':'application/json'};
-      if(useToken) headers['Authorization']='Bearer '+getToken();
-      try{
-        const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(body)});
-        if(r.ok) return true;
-      }catch(_){}
-      try{
-        const blob=new Blob([JSON.stringify(body)],{type:'application/json'});
-        const ok=navigator.sendBeacon ? navigator.sendBeacon(url, blob) : false;
-        if(ok) return true;
-      }catch(_){}
-      return false;
+    function setStatus(msg){
+      document.getElementById('status').textContent = msg;
     }
 
-    // ===== Auth
-    async function doLogin(){
-      const email=$('loginEmail').value.trim();
-      const password=$('loginPass').value;
-      if(!email||!password) return toast('Completa email y contraseña');
-      try{
-        const r=await fetch(`${API}/login`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({email,password})
-        });
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'Error de login');
-        setToken(data.token); setUser(data.user||{});
-        routeAfterLogin();
-
-        const u=getUser();
-        const accessItem={email:u.email,nombre:u.nombre||'',estado:'OK',fecha:Date.now()};
-        const ok=await sendJSON(`${API}/admin/access/log`, accessItem, true);
-        if(!ok){
-          const backup={...accessItem,ip:'-'};
-          const loc=jget(LS_KEYS.localAccess,[]);
-          loc.unshift(backup); jset(LS_KEYS.localAccess,loc);
-          queue(LS_KEYS.pAccess,accessItem);
-        }
-
-        if(navigator.geolocation){
-          navigator.geolocation.getCurrentPosition(async pos=>{
-            const payload={
-              lat:+pos.coords.latitude.toFixed(6),
-              lng:+pos.coords.longitude.toFixed(6),
-              color:$('repColor')?.value||'VERDE'
-            };
-            const ok=await sendJSON(`${API}/position`, payload, true);
-            if(!ok) queue(LS_KEYS.pPos,payload);
-            refreshAgents();
-          });
-        }
-      }catch(e){ toast(e.message); }
-    }
-
-    async function doRegister(){
-      const nombre=$('regNombre').value.trim();
-      const email=$('regEmail').value.trim();
-      const pass=$('regPass').value, pass2=$('regPass2').value;
-      const grado=$('regGrado').value, fuerza=$('regFuerza').value;
-      if(!nombre||!email||!pass||!pass2) return toast('Completa todos los campos');
-      if(pass!==pass2) return toast('Las contraseñas no coinciden');
-      try{
-        const r=await fetch(`${API}/register`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({nombre,email,password:pass,grado,fuerza})
-        });
-        const data=await r.json(); if(!r.ok) throw new Error(data.message||'No se pudo registrar');
-        toggleLogin(true); window.scrollTo({top:0,behavior:'auto'});
-      }catch(e){ toast(e.message); }
-    }
-
-    function routeAfterLogin(){
-      const u=getUser();
-      $('auth').classList.add('hide'); $('auth').innerHTML='';
-      $('sessionBox').classList.remove('hide');
-      $('whoami').textContent = `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'}`;
-      $('btnOperativo').classList.remove('hide');
-      if(u.is_admin) $('btnAdmin').classList.remove('hide');
-      showOperativo(); initMap(); cargarAlertasUsuario();
-      tryFlushPending();
-      if(u.is_admin){
-        setInterval(cargarAlertasAdmin, 10000);
-        setInterval(cargarAccesos, 10000);
-      }
-    }
-
-    function logout(){ setToken(''); setUser({}); location.reload(); }
-
-    // ===== Ubicación botón
-    async function usarMiUbicacion(){
-      if(!navigator.geolocation){ toast('Geolocalización no disponible'); return; }
-      $('btnUbicacion').disabled = true;
-      navigator.geolocation.getCurrentPosition(
-        async pos=>{
-          const lat = +pos.coords.latitude.toFixed(6);
-          const lng = +pos.coords.longitude.toFixed(6);
-          $('repLat').value = lat;
-          $('repLng').value = lng;
-
-          if(map){
-            if(myMarker){ map.removeLayer(myMarker); }
-            const icon=L.divIcon({className:'',html:'<div style="width:16px;height:16px;border-radius:50%;border:2px solid #fff;background:#22c55e"></div>'});
-            myMarker = L.marker([lat,lng],{icon}).addTo(map).bindPopup('Mi posición');
-            map.setView([lat,lng], Math.max(map.getZoom(), 14));
-          }
-
-          const payload={lat,lng,color:$('repColor')?.value||'VERDE'};
-          const ok=await sendJSON(`${API}/position`, payload, true);
-          if(!ok) queue(LS_KEYS.pPos,payload);
-          refreshAgents();
-          $('btnUbicacion').disabled = false;
-        },
-        _=>{ toast('No se pudo obtener ubicación'); $('btnUbicacion').disabled=false; },
-        {enableHighAccuracy:true,timeout:8000}
-      );
-    }
-
-    // ===== Flush periódico
-    async function tryFlushPending(){
-      const token=getToken(); if(!token) return;
-
-      let qa=jget(LS_KEYS.pAccess,[]);
-      if(qa.length){
-        const left=[];
-        for(const a of qa){
-          const ok=await sendJSON(`${API}/admin/access/log`, a, true);
-          if(!ok) left.push(a);
-        }
-        jset(LS_KEYS.pAccess,left);
-      }
-
-      let qp=jget(LS_KEYS.pPos,[]);
-      if(qp.length){
-        const left=[];
-        for(const p of qp){
-          const ok=await sendJSON(`${API}/position`, p, true);
-          if(!ok) left.push(p);
-        }
-        jset(LS_KEYS.pPos,left);
-        refreshAgents();
-      }
-
-      let qr=jget(LS_KEYS.pAlerts,[]);
-      if(qr.length){
-        const left=[];
-        for(const rep of qr){
-          const ok=await sendJSON(`${API}/reports`, rep, true);
-          if(!ok) left.push(rep);
-        }
-        jset(LS_KEYS.pAlerts,left);
-      }
-    }
-    setInterval(tryFlushPending, 10000);
-
-    // ===== Reportes & Alertas
-    async function enviarReporte(){
-      const p={
-        nivel:$('repNivel').value,
-        operacion:$('repOperacion').value,
-        color:$('repColor').value,
-        pais_ciudad:$('repPaisCiudad').value.trim(),
-        lugar_code:$('repLugar').value,
-        personalidad:$('repPersonalidad').value,
-        unidad_policial:$('repUnidad').value,
-        accion_oponente:$('repAccionOponente').value,
-        material_equipo:$('repMaterial').value,
-        transporte:$('repTransporte').value,
-        otros:$('repOtros').value,
-        clasificacion_seg:$('repClasif').value,
-        tipo_documento:$('repTipoDoc').value,
-        detalle:$('repDetalle').value.trim(),
-        lat:Number($('repLat').value),
-        lng:Number($('repLng').value),
-        fecha: Date.now()
-      };
-      if(!p.pais_ciudad||!p.detalle) return toast('Completa País/Ciudad y Detalle');
-
-      const ok=await sendJSON(`${API}/reports`, p, true);
-      if(!ok){ queue(LS_KEYS.pAlerts,p); }
-
-      const loc=jget(LS_KEYS.localAlerts,[]); loc.unshift(p); jset(LS_KEYS.localAlerts,loc);
-      cargarAlertasUsuario();
-      if(getUser()?.is_admin) cargarAlertasAdmin();
-      toast(ok?'Reporte enviado':'Enviado en modo local (se sincronizará)');
-    }
-
-    async function cargarAlertasUsuario(){
-      let server = [];
-      try{
-        const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json();
-        if(r.ok) server = data.alertas || data.reports || data.alerts || [];
-      }catch(_){}
-      const local = jget(LS_KEYS.localAlerts,[]);
-      const all = dedupeAlerts([...local, ...server]);
-      renderFeed(all); renderTableUser(all);
-
-      if (alertsLayer && map){
-        alertsLayer.clearLayers();
-        all.forEach(a=>{
-          if(typeof a.lat==='number' && typeof a.lng==='number'){
-            const icon=L.divIcon({className:'',html:'<div style="width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'});
-            L.marker([a.lat,a.lng],{icon})
-              .addTo(alertsLayer)
-              .bindPopup(`<b>${esc(a.operacion||'-')}</b><br>${esc(a.detalle||'')}`);
-          }
-        });
-      }
-    }
-
-    async function cargarAlertasAdmin(){
-      let server = [];
-      try{
-        const r=await fetch(`${API}/admin/alerts`,{headers:{'Authorization':'Bearer '+getToken()}});
-        const data=await r.json();
-        if(r.ok) server = data.alertas || data.reports || data.alerts || [];
-      }catch(_){}
-      const all = dedupeAlerts([...jget(LS_KEYS.localAlerts,[]), ...server]);
-      renderTableAdmin(all);
-
-      if (alertsLayer && map){
-        alertsLayer.clearLayers();
-        all.forEach(a=>{
-          if(typeof a.lat==='number' && typeof a.lng==='number'){
-            const icon=L.divIcon({className:'',html:'<div style="width:10px;height:10px;border-radius:50%;border:2px solid #fff;"></div>'});
-            L.marker([a.lat,a.lng],{icon})
-              .addTo(alertsLayer)
-              .bindPopup(`<b>${esc(a.operacion||'-')}</b><br>${esc(a.detalle||'')}`);
-          }
-        });
-      }
-    }
-
-    function dedupeAlerts(list){
-      const seen=new Set();
-      return list.filter(a=>{
-        const key=[a.fecha||'',a.operacion||'',a.detalle||''].join('|');
-        if(seen.has(key)) return false; seen.add(key); return true;
-      });
-    }
-
-    function renderFeed(items){
-      const box=$('feedAlertas'); box.innerHTML='';
-      if(!items.length){
-        box.innerHTML='<div class="muted">Sin alertas.</div>';
+    document.getElementById('btnStart').addEventListener('click', () => {
+      if(!('geolocation' in navigator)){
+        setStatus('Este dispositivo no soporta geolocalización.');
         return;
       }
-      items.forEach(o=>{
-        const row=document.createElement('div');
-        row.style.border='1px solid var(--line)';
-        row.style.borderRadius='12px';
-        row.style.padding='10px';
-        row.style.marginBottom='8px';
-        row.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span class="chip">${o.nivel||'-'}</span>
-            <span class="muted" style="font-size:12px">${fmtDate(o.fecha)}</span>
-          </div>
-          <div style="margin-top:6px"><b>${esc(o.operacion||'-')}</b></div>
-          <div class="muted" style="font-size:13px;margin-top:4px">
-            ${esc(o.pais_ciudad||'')} • LUGAR ${esc(o.lugar_code||'')} • ${esc(o.clasificacion_seg||'')}
-          </div>
-          <div style="margin-top:4px;font-size:13px">Lat ${num(o.lat)} / Lng ${num(o.lng)}</div>
-          <div style="margin-top:6px">${esc(o.detalle||'')}</div>
-        `;
-        box.appendChild(row);
-      });
-    }
 
-    function renderTableUser(rows){
-      const tb=$('tablaAlertas').querySelector('tbody'); tb.innerHTML='';
-      rows.forEach(o=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML=`
-          <td>${fmtDate(o.fecha)}</td>
-          <td><span class="chip">${o.nivel||'-'}</span></td>
-          <td>${esc(o.operacion)}</td>
-          <td>${esc(o.pais_ciudad)}</td>
-          <td>${esc(o.lugar_code)}</td>
-          <td>${esc(o.clasificacion_seg)}</td>
-          <td>${num(o.lat)}</td>
-          <td>${num(o.lng)}</td>
-          <td>${esc(o.detalle)}</td>`;
-        tb.appendChild(tr);
-      });
-    }
+      setStatus('Solicitando permiso de ubicación…');
+      document.getElementById('btnStart').disabled = true;
 
-    function renderTableAdmin(rows){
-      const tb=$('tablaAdminAlertas').querySelector('tbody');
-      if(!tb) return;
-      tb.innerHTML='';
-      rows.forEach(o=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML=`
-          <td>${fmtDate(o.fecha)}</td>
-          <td><span class="chip">${o.nivel||'-'}</span></td>
-          <td>${esc(o.operacion)}</td>
-          <td>${esc(o.pais_ciudad)}</td>
-          <td>${esc(o.lugar_code)}</td>
-          <td>${esc(o.clasificacion_seg)}</td>
-          <td>${num(o.lat)}</td>
-          <td>${num(o.lng)}</td>
-          <td>${esc(o.detalle)}</td>
-          <td>${esc(o?.usuario?.email||'-')}</td>`;
-        tb.appendChild(tr);
-      });
-    }
+      navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        initMap(lat,lng);
+        setStatus('Rastreo iniciado. Moviéndote, el punto se va actualizando.');
 
-    function exportarPDF(){
-      const html = document.getElementById('tablaAlertas').outerHTML;
-      const doc = `<!doctype html><html><head><meta charset="utf-8"><title>Alertas</title>
-      <style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;font-family:Arial,sans-serif;font-size:12px}</style>
-      </head><body>${html}</body></html>`;
-      const win=window.open('','_blank');
-      win.document.open(); win.document.write(doc); win.document.close();
-      win.onload=()=>win.print();
-    }
-
-    // ===== Accesos
-    function getLocalAccess(){ return jget(LS_KEYS.localAccess,[]); }
-
-    function cargarAccesos(){
-      let server=[];
-      fetch(`${API}/admin/access`,{headers:{'Authorization':'Bearer '+getToken()}})
-        .then(r=>r.json())
-        .then(d=>{
-          server = d?.accesos || d?.accesses || [];
-          draw();
-        })
-        .catch(()=>draw());
-
-      function draw(){
-        const all=[...getLocalAccess(),...server];
-        const tb=$('tablaAccesos').querySelector('tbody');
-        if(!tb) return;
-        tb.innerHTML='';
-        if(!all.length) return;
-        all.forEach(a=>{
-          const tr=document.createElement('tr');
-          tr.innerHTML=`
-            <td>${fmtDate(a.fecha)}</td>
-            <td>${esc(a.email)}</td>
-            <td>${esc(a.nombre||'')}</td>
-            <td>${esc(a.ip||'-')}</td>
-            <td><span class="chip">${esc(a.estado||'OK')}</span></td>
-            <td style="text-align:right">
-              <button class="btn btn-warn" onclick="bloquearAcceso('${a.email||''}')">Bloquear</button>
-              <button class="btn btn-danger" style="margin-left:6px" onclick="eliminarAccesos('${a.email||''}')">Eliminar</button>
-            </td>`;
-          tb.appendChild(tr);
+        // seguir la ubicación en tiempo real
+        navigator.geolocation.watchPosition(p => {
+          const lt = p.coords.latitude;
+          const lg = p.coords.longitude;
+          initMap(lt,lg);
+        }, err => {
+          setStatus('Error al actualizar ubicación: ' + err.message);
+        }, {
+          enableHighAccuracy: true,
+          maximumAge: 3000,
+          timeout: 10000
         });
-      }
-    }
 
-    async function bloquearAcceso(email){
-      if(!email) return;
-      try{
-        const r=await fetch(`${API}/admin/access/block`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
-          body:JSON.stringify({email})
-        });
-        if(!r.ok) throw 0;
-        cargarAccesos();
-      }catch(_){ toast('Bloqueo local no soportado'); }
-    }
-
-    async function eliminarAccesos(email){
-      if(!email) return;
-      try{
-        const r=await fetch(`${API}/admin/access`,{
-          method:'DELETE',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
-          body:JSON.stringify({email})
-        });
-        if(!r.ok) throw 0;
-        cargarAccesos();
-      }catch(_){
-        const rest=getLocalAccess().filter(x=>x.email!==email);
-        jset(LS_KEYS.localAccess,rest);
-        cargarAccesos();
-      }
-    }
-
-    // Utils
-    function fmtDate(t){ try{return new Date(t||Date.now()).toLocaleString();}catch{return''} }
-    function esc(s){ return (s==null?'':String(s)).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
-    function num(v){ return (typeof v==='number'&&!Number.isNaN(v))?v.toFixed(6):''; }
-
-    // Init
-    (function init(){
-      const ids=[
-        ['regGrado',GRADOS],
-        ['regFuerza',FUERZAS],
-        ['repOperacion',OPERACIONES],
-        ['repLugar',LUGARES],
-        ['repPersonalidad',PERSONALIDADES],
-        ['repUnidad',UNIDADES],
-        ['repAccionOponente',ACCIONES_OP],
-        ['repMaterial',MATERIAL],
-        ['repTransporte',TRANSP],
-        ['repOtros',OTROS],
-        ['repTipoDoc',TIPODOC]
-      ];
-      ids.forEach(([id,arr])=>{
-        const el=$(id);
-        if(el) fillSelect(el,arr);
+      }, err => {
+        setStatus('No se pudo obtener tu ubicación: ' + err.message);
+        document.getElementById('btnStart').disabled = false;
+      }, {
+        enableHighAccuracy: true,
+        timeout: 15000
       });
-
-      const u=getUser();
-      if(u?.email){
-        $('auth').classList.add('hide'); $('auth').innerHTML='';
-        $('sessionBox').classList.remove('hide');
-        $('whoami').textContent = `${u.email} ${u.is_admin?'(Admin)':'(Usuario)'}`;
-        $('btnOperativo').classList.remove('hide');
-        if(u.is_admin) $('btnAdmin').classList.remove('hide');
-        showOperativo(); initMap(); cargarAlertasUsuario();
-        tryFlushPending();
-        if(u.is_admin){
-          setInterval(cargarAlertasAdmin, 10000);
-          setInterval(cargarAccesos, 10000);
-        }
-      }
-      document.addEventListener('visibilitychange', ()=>{
-        if(document.visibilityState==='hidden') tryFlushPending();
-      });
-    })();
+    });
   </script>
 </body>
 </html>
-
